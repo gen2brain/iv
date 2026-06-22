@@ -8,13 +8,13 @@ Small and simple image viewer.
 
 ### Features
 
-* Supports Linux (X11, Wayland, DRM), Windows (Win32), macOS (Cocoa) and BSDs (X11)
-* Supports JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM, PBM, PGM, PPM, SVG, PSD, PSP, MPO and QOI
-* Supports HTTP URL arguments (if URL is an HTML page, it will scrape images)
-* Supports animated GIF, PNG, WEBP, AVIF and JXL
-* Reloads automatically when the current image is modified or its directory changes
-* Single instance mode, open files in an already-running window
-* No external runtime dependencies, single static binary \*
+* **Platforms:** Linux (X11, Wayland, DRM), Windows (Win32), macOS (Cocoa), BSDs (X11)
+* **Formats:** JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM/PBM/PGM/PPM, SVG, PSD, PSP, MPO, QOI
+* **Animation:** GIF, PNG, WEBP, AVIF, JXL
+* **URLs:** HTTP arguments, and image scraping from HTML pages
+* **Auto-reload:** when the current image is modified or its directory changes
+* **Single instance:** open files in an already-running window
+* **Self-contained:** no external runtime dependencies, single static binary \*
  
 ### Download
 
