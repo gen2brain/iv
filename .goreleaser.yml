@@ -2,6 +2,10 @@ version: 2
 
 project_name: iv
 
+git:
+  ignore_tags:
+    - 'cmd/iv/*'
+
 before:
   hooks:
     - go mod download
