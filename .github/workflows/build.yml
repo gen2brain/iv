@@ -24,12 +24,19 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-      - name: Vet
-        run: go vet ./... ./cmd/iv/...
-      - name: Test
-        run: go test ./... ./cmd/iv/...
-      - name: Build
-        run: go build ./... ./cmd/iv/...
+      - name: Root module
+        shell: bash
+        run: |
+          go vet ./...
+          go test ./...
+          go build ./...
+      - name: cmd/iv module
+        shell: bash
+        working-directory: cmd/iv
+        run: |
+          go vet ./...
+          go test ./...
+          go build ./...
 
   cross:
     name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -51,18 +58,24 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-      - name: Build
-        run: go build ./... ./cmd/iv/...
+      - name: Build root module
+        run: go build ./...
+      - name: Build cmd/iv module
+        working-directory: cmd/iv
+        run: go build ./...
 
   tags:
     name: Build tags
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cmd/iv
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
       - name: minimal
-        run: go build -tags minimal ./cmd/iv
+        run: go build -tags minimal .
       - name: nodynamic
-        run: go build -tags nodynamic ./cmd/iv
+        run: go build -tags nodynamic .
