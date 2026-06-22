@@ -1,0 +1,62 @@
+# Window width
+width 1024
+
+# Window height
+height 768
+
+# DRM device index
+device 0
+
+# Resample filter (0=NearestNeighbor, 1=Linear, 2=Bicubic)
+filter 0
+
+# Show window title
+title true
+
+# Window title format
+title-format {{.App}} {{.Version}} [{{.Index}}/{{.Count}}] - {{.Name}} ({{.Width}}x{{.Height}}{{if .Size}}, {{.Size}}{{end}}, {{.Format}}, {{.Zoom}}% {{- if .Contrast}} C:{{.Contrast}}{{end}} {{- if .Brightness}} B:{{.Brightness}}{{end}} {{- if ne .Gamma 100}} G:{{.Gamma}}{{end}} {{- if .Saturation}} S:{{.Saturation}}{{end}})
+
+# Window title loading format
+title-loading  {{.App}} {{.Version}} [{{.Index}}/{{.Count}}] - Loading...
+
+# Start slideshow
+slideshow false
+
+# Slideshow interval (in seconds)
+slideshow-interval 4
+
+# Process subdirectories recursively
+recursive false
+
+# Start in fullscreen
+fullscreen false
+
+# Load all images from the image directory
+browse true
+
+# Wrap around at the first/last image
+loop false
+
+# Sort by (0=No sort, 1=Name (natural order), 2=Modification time, 3=Size, 4=Shuffle)
+sort 0
+
+# Text color
+text-color #FFFFFF
+
+# Window background color
+background-color #000000
+
+# Initial zoom level (1, 1000)
+zoom 0
+
+# Adjust brightness (-100, 100)
+brightness 0
+
+# Adjust contrast (-100, 100)
+contrast 0
+
+# Adjust gamma (1, 100)
+gamma 100
+
+# Adjust saturation (-100, 100)
+saturation 0
