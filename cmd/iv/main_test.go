@@ -15,7 +15,18 @@ func TestColorize(t *testing.T) {
 		t.Fatalf("colorize(on) = %q, want %q", got, want)
 	}
 
-	if useColor(os.Stdout) {
-		t.Fatal("useColor should be false for non-terminal stdout")
+	f, err := os.CreateTemp(t.TempDir(), "iv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	if useColor(f) {
+		t.Fatal("useColor should be false for a regular file")
+	}
+
+	t.Setenv("NO_COLOR", "1")
+	if useColor(f) {
+		t.Fatal("useColor should be false when NO_COLOR is set")
 	}
 }
