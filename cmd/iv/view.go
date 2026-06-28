@@ -1040,7 +1040,7 @@ func (v *view) adjust(img *image.RGBA) *image.RGBA {
 	return img
 }
 
-var zoomLevels = []int{10, 25, 50, 75, 100, 150, 200, 300, 400, 600, 800, 1000}
+var zoomLevels = []int{10, 25, 50, 75, 100, 125, 150, 175, 200, 250, 300, 400, 500, 600, 800, 1000}
 
 func (v *view) handleZoom(key int) {
 	current := v.zoomPercent()

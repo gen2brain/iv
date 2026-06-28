@@ -116,7 +116,7 @@ func TestZoomLevels(t *testing.T) {
 		key     int
 		want    int
 	}{
-		{100, iv.KeyEqual, 150},
+		{100, iv.KeyEqual, 125},
 		{100, iv.KeyMinus, 75},
 		{40, iv.KeyEqual, 50},
 		{40, iv.KeyMinus, 25},
