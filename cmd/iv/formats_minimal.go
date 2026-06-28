@@ -20,6 +20,11 @@ var (
 	animationsMime = []string{"image/gif"}
 )
 
+func decodeImage(_ string, r io.Reader) (image.Image, error) {
+	img, _, err := image.Decode(r)
+	return img, err
+}
+
 func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 	var err error
 	var rc io.ReadCloser

@@ -15,7 +15,7 @@ import (
 	_ "github.com/donatj/mpo"
 	"github.com/gen2brain/avif"
 	_ "github.com/gen2brain/heic"
-	_ "github.com/gen2brain/jpegn"
+	"github.com/gen2brain/jpegn"
 	"github.com/gen2brain/jpegxl"
 	_ "github.com/gen2brain/svg"
 	"github.com/gen2brain/webp"
@@ -42,6 +42,19 @@ var (
 
 	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl"}
 )
+
+// decodeImage decodes a single image, using format-specific options where supported, else image.Decode.
+func decodeImage(format string, r io.Reader) (image.Image, error) {
+	switch format {
+	case "JPEG":
+		return jpegn.Decode(r, &jpegn.Options{AutoRotate: true, ToRGBA: true})
+	case "WEBP":
+		return webp.Decode(r, webp.Options{AutoRotate: true})
+	default:
+		img, _, err := image.Decode(r)
+		return img, err
+	}
+}
 
 func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 	var err error
@@ -95,7 +108,7 @@ func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	case "WEBP":
-		ret, err := webp.DecodeAll(rc)
+		ret, err := webp.DecodeAll(rc, webp.Options{AutoRotate: true})
 		if err != nil {
 			return images, delay, err
 		}

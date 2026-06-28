@@ -36,7 +36,7 @@ func decode(fileInfo info) (*image.RGBA, error) {
 
 	defer rc.Close()
 
-	img, _, err = image.Decode(rc)
+	img, err = decodeImage(fileInfo.Format, rc)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", fileInfo.Name, err)
 	}
