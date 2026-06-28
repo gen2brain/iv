@@ -2,8 +2,6 @@ module github.com/gen2brain/iv/cmd/iv
 
 go 1.26
 
-replace github.com/gen2brain/iv => ../../
-
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/anthonynsimon/bild v0.15.0
@@ -13,7 +11,7 @@ require (
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/gen2brain/avif v0.5.2
 	github.com/gen2brain/heic v0.6.1
-	github.com/gen2brain/iv v0.0.0-00010101000000-000000000000
+	github.com/gen2brain/iv v0.2.0
 	github.com/gen2brain/jpegn v0.4.2
 	github.com/gen2brain/jpegxl v0.5.2
 	github.com/gen2brain/svg v0.1.0
