@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"time"
 
 	"codeberg.org/tesselslate/wl"
 	"codeberg.org/tesselslate/wl-protocols/wp"
@@ -92,6 +93,11 @@ type viewWayland struct {
 	closedFired bool
 	axisAccum   int32
 
+	repeatKey   int
+	repeatRate  int32
+	repeatDelay int32
+	repeatNext  time.Time
+
 	keyPressHandler      KeyPressHandler
 	keyReleaseHandler    KeyReleaseHandler
 	buttonPressHandler   ButtonPressHandler
@@ -109,6 +115,8 @@ func newWayland(opts Options) (*viewWayland, error) {
 	v := &viewWayland{}
 	v.winWidth = opts.Width
 	v.winHeight = opts.Height
+	v.repeatRate = 25
+	v.repeatDelay = 500
 
 	bg, err := parseHexColor(opts.BackgroundColor)
 	if err != nil {
@@ -270,7 +278,7 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 	}
 
 	_, hasDeadline := ctx.Deadline()
-	v.beat = hasDeadline
+	v.beat = hasDeadline || v.repeatKey != 0
 	if v.beat && v.configured {
 		v.armFrame()
 	}
@@ -299,6 +307,14 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 
 		if v.closed || v.display == nil {
 			return nil
+		}
+
+		v.fireRepeat()
+
+		wasBeat := v.beat
+		v.beat = hasDeadline || v.repeatKey != 0
+		if v.beat && !wasBeat && v.configured {
+			v.armFrame()
 		}
 
 		if err := v.display.Flush(); err != nil {
@@ -549,7 +565,7 @@ func (v *viewWayland) onToplevelClose(_ any, _ xdg.Toplevel) error {
 func (v *viewWayland) onCapabilities(_ any, self wl.Seat, caps wl.SeatCapability) error {
 	if caps&wl.SeatCapabilityKeyboard != 0 && v.keyboard == (wl.Keyboard{}) {
 		v.keyboard = self.GetKeyboard()
-		v.keyboard.SetListener(wl.KeyboardListener{Key: v.onKey}, nil)
+		v.keyboard.SetListener(wl.KeyboardListener{Key: v.onKey, RepeatInfo: v.onRepeatInfo}, nil)
 	}
 
 	if caps&wl.SeatCapabilityPointer != 0 && v.pointer == (wl.Pointer{}) {
@@ -577,16 +593,61 @@ func (v *viewWayland) onKey(_ any, _ wl.Keyboard, _, _, key uint32, state wl.Key
 	val := int(key) + 8
 
 	if state == wl.KeyboardKeyStatePressed {
+		v.startRepeat(val)
 		if v.keyPressHandler != nil {
 			v.keyPressHandler(val)
 		}
 	} else if state == wl.KeyboardKeyStateReleased {
+		if v.repeatKey == val {
+			v.repeatKey = 0
+		}
 		if v.keyReleaseHandler != nil {
 			v.keyReleaseHandler(val)
 		}
 	}
 
 	return nil
+}
+
+func (v *viewWayland) onRepeatInfo(_ any, _ wl.Keyboard, rate, delay int32) error {
+	v.repeatRate = rate
+	v.repeatDelay = delay
+
+	return nil
+}
+
+func (v *viewWayland) startRepeat(key int) {
+	if v.repeatRate <= 0 || repeatExempt(key) {
+		v.repeatKey = 0
+		return
+	}
+
+	v.repeatKey = key
+	v.repeatNext = time.Now().Add(time.Duration(v.repeatDelay) * time.Millisecond)
+}
+
+func (v *viewWayland) fireRepeat() {
+	if v.repeatKey == 0 || v.keyPressHandler == nil {
+		return
+	}
+
+	now := time.Now()
+	if now.Before(v.repeatNext) {
+		return
+	}
+
+	v.repeatNext = now.Add(time.Second / time.Duration(v.repeatRate))
+	v.keyPressHandler(v.repeatKey)
+}
+
+// repeatExempt reports whether a key should not auto-repeat (modifiers).
+func repeatExempt(key int) bool {
+	switch key {
+	case KeyLeftShift, KeyRightShift, KeyLeftControl, KeyRightControl, KeyLeftAlt, KeyRightAlt:
+		return true
+	}
+
+	return false
 }
 
 func (v *viewWayland) onButton(_ any, _ wl.Pointer, _, _, button uint32, state wl.PointerButtonState) error {
