@@ -131,6 +131,7 @@ type view struct {
 
 	needDecode bool
 	needBuild  bool
+	decodeAt   time.Time
 
 	closed bool
 
@@ -253,6 +254,37 @@ func (v *view) run() error {
 		changed := false
 
 		if v.needDecode {
+			if !v.decodeAt.IsZero() && time.Now().Before(v.decodeAt) && len(v.frames) > 0 {
+				if v.opts.Title {
+					_ = v.view.SetTitle(v.formatTitle(true))
+				}
+
+				v.settleContext(time.Until(v.decodeAt))
+
+				fr := v.frame
+				if fr >= len(v.frames) {
+					fr = 0
+				}
+
+				if err := v.view.Display(v.ctx, v.frames[fr], "", true); err != nil {
+					return err
+				}
+
+				if v.closed {
+					return nil
+				}
+
+				if v.drainPending() {
+					_ = v.view.Raise()
+				}
+
+				v.drainWatch()
+
+				continue
+			}
+
+			v.decodeAt = time.Time{}
+
 			if v.opts.Title {
 				_ = v.view.SetTitle(v.formatTitle(true))
 			}
@@ -443,6 +475,26 @@ func (v *view) handleContext() {
 	v.ctx, v.cancel = ctx, cancel
 }
 
+const navDebounce = 150 * time.Millisecond
+
+// navDecode defers the decode until the selection settles, so holding a key does not decode every step.
+func (v *view) navDecode() {
+	v.needDecode = true
+	v.decodeAt = time.Now().Add(navDebounce)
+	v.cancel()
+}
+
+func (v *view) settleContext(d time.Duration) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if v.cancel != nil {
+		v.cancel()
+	}
+
+	v.ctx, v.cancel = context.WithTimeout(context.Background(), d)
+}
+
 // waitBlank shows an empty window and blocks until a push arrives or the window closes.
 func (v *view) waitBlank() error {
 	if v.opts.Title {
@@ -480,6 +532,7 @@ func (v *view) drainPending() bool {
 	v.pending = nil
 	v.idx = start
 	v.needDecode = true
+	v.decodeAt = time.Time{}
 	v.mu.Unlock()
 
 	for _, it := range pushed {
@@ -516,6 +569,7 @@ func (v *view) drainWatch() bool {
 	case len(v.args) == 0:
 	case reload:
 		v.needDecode = true
+		v.decodeAt = time.Time{}
 	case v.opts.Title:
 		_ = v.view.SetTitle(v.formatTitle(false))
 	}
@@ -790,8 +844,7 @@ func (v *view) jumpTo() {
 
 	if idx != v.idx {
 		v.idx = idx
-		v.needDecode = true
-		v.cancel()
+		v.navDecode()
 	}
 }
 
@@ -839,8 +892,7 @@ func (v *view) onScroll(direction int) {
 	}
 
 	if v.idx != old {
-		v.needDecode = true
-		v.cancel()
+		v.navDecode()
 	}
 }
 
@@ -1113,8 +1165,7 @@ func (v *view) handleIndex(key int) {
 	}
 
 	if v.idx != old {
-		v.needDecode = true
-		v.cancel()
+		v.navDecode()
 	}
 }
 
