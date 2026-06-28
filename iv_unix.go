@@ -59,6 +59,11 @@ func (v *View) Fullscreen() bool {
 	return v.viewer.Fullscreen()
 }
 
+// Maximize maximizes the window to the available work area.
+func (v *View) Maximize() error {
+	return v.viewer.Maximize()
+}
+
 // SetTitle sets window title.
 func (v *View) SetTitle(title string) error {
 	return v.viewer.SetTitle(title)

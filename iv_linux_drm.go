@@ -229,6 +229,10 @@ func (v *viewDRM) Fullscreen() bool {
 	return false
 }
 
+func (v *viewDRM) Maximize() error {
+	return nil
+}
+
 func (v *viewDRM) Raise() error {
 	return nil
 }

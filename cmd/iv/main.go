@@ -40,6 +40,7 @@ func main() {
 	flag.Float64Var(&opts.SlideshowInterval, "slideshow-interval", 4, "Slideshow interval (in seconds) [IV_SLIDESHOW_INTERVAL].")
 	flag.BoolVar(&opts.Recursive, "recursive", false, "Process subdirectories recursively [IV_RECURSIVE].")
 	flag.BoolVar(&opts.Fullscreen, "fullscreen", false, "Start in fullscreen [IV_FULLSCREEN].")
+	flag.BoolVar(&opts.Maximize, "maximize", false, "Start maximized [IV_MAXIMIZE].")
 	flag.BoolVar(&opts.Browse, "browse", true, "Load all images from the image directory [IV_BROWSE].")
 	flag.BoolVar(&opts.Loop, "loop", false, "Wrap around at the first/last image [IV_LOOP].")
 	flag.IntVar(&opts.Sort, "sort", 0, "0=No sort, 1=Name (natural order), 2=MTime, 3=Size, 4=Shuffle [IV_SORT].")

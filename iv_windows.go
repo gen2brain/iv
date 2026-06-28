@@ -213,6 +213,13 @@ func (v *View) Fullscreen() bool {
 	return v.getFullscreen()
 }
 
+// Maximize maximizes the window to the available work area.
+func (v *View) Maximize() error {
+	win.ShowWindow(v.hwnd, win.SW_SHOWMAXIMIZED)
+
+	return nil
+}
+
 // SetTitle sets window title.
 func (v *View) SetTitle(title string) error {
 	ptr, err := windows.UTF16PtrFromString(title)

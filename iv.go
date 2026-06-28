@@ -16,6 +16,7 @@ type Viewer interface {
 	Display(ctx context.Context, img image.Image, args ...any) error
 	ToggleFullscreen() error
 	Fullscreen() bool
+	Maximize() error
 	Raise() error
 	SetTitle(string) error
 	SetIcon(image.Image) error

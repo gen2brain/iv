@@ -42,6 +42,10 @@ func (v *View) Fullscreen() bool {
 	return false
 }
 
+func (v *View) Maximize() error {
+	return nil
+}
+
 func (v *View) ScreenSize() (int, int) {
 	return 0, 0
 }

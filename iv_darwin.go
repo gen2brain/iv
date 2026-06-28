@@ -80,6 +80,7 @@ var (
 	selSetDelegate           = objc.RegisterName("setDelegate:")
 	selSetAcceptsMouseMoved  = objc.RegisterName("setAcceptsMouseMovedEvents:")
 	selToggleFullScreen      = objc.RegisterName("toggleFullScreen:")
+	selZoom                  = objc.RegisterName("zoom:")
 	selBackingScaleFactor    = objc.RegisterName("backingScaleFactor")
 	selFrame                 = objc.RegisterName("frame")
 	selConvertSizeToBacking  = objc.RegisterName("convertSizeToBacking:")
@@ -445,6 +446,13 @@ func (v *View) ToggleFullscreen() error {
 // Fullscreen returns current fullscreen state.
 func (v *View) Fullscreen() bool {
 	return v.fullscreen
+}
+
+// Maximize maximizes the window to the available work area.
+func (v *View) Maximize() error {
+	v.window.Send(selZoom, objc.ID(0))
+
+	return nil
 }
 
 // SetTitle sets window title.

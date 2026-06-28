@@ -323,6 +323,41 @@ func (v *viewX11) Fullscreen() bool {
 	return v.fullscreen
 }
 
+func (v *viewX11) Maximize() error {
+	name := "_NET_WM_STATE"
+	atomState, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return err
+	}
+
+	name = "_NET_WM_STATE_MAXIMIZED_HORZ"
+	atomHorz, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return err
+	}
+
+	name = "_NET_WM_STATE_MAXIMIZED_VERT"
+	atomVert, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return err
+	}
+
+	data := make([]uint32, 5)
+	data[0] = uint32(1) // _NET_WM_STATE_ADD
+	data[1] = uint32(atomHorz.Atom)
+	data[2] = uint32(atomVert.Atom)
+
+	ev := &xproto.ClientMessageEvent{
+		Format: 32,
+		Window: v.window,
+		Type:   atomState.Atom,
+		Data:   xproto.ClientMessageDataUnionData32New(data),
+	}
+
+	evMask := xproto.EventMaskSubstructureNotify | xproto.EventMaskSubstructureRedirect
+	return xproto.SendEventChecked(v.xc, false, v.screen.Root, uint32(evMask), string(ev.Bytes())).Check()
+}
+
 func (v *viewX11) Raise() error {
 	name := "_NET_ACTIVE_WINDOW"
 	atom, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()

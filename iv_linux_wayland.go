@@ -756,6 +756,12 @@ func (v *viewWayland) Fullscreen() bool {
 	return v.fullscreen
 }
 
+func (v *viewWayland) Maximize() error {
+	v.toplevel.SetMaximized()
+
+	return v.display.Flush()
+}
+
 func (v *viewWayland) Raise() error {
 	return nil
 }

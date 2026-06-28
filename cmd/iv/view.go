@@ -51,6 +51,7 @@ type options struct {
 	SlideshowInterval float64
 	Recursive         bool
 	Fullscreen        bool
+	Maximize          bool
 	Browse            bool
 	Loop              bool
 	Sort              int
@@ -659,6 +660,12 @@ func (v *view) frameTimeout() time.Duration {
 func (v *view) onCreated() {
 	if v.opts.Fullscreen {
 		if err := v.view.ToggleFullscreen(); err != nil {
+			stderr(err)
+		}
+	}
+
+	if v.opts.Maximize {
+		if err := v.view.Maximize(); err != nil {
 			stderr(err)
 		}
 	}
