@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"io"
 	"log"
 	"sync/atomic"
@@ -34,6 +35,10 @@ type viewX11 struct {
 	shmData []byte
 	useShm  bool
 
+	bg         color.RGBA
+	buf        []byte
+	bufW, bufH int
+
 	keyPressHandler      KeyPressHandler
 	keyReleaseHandler    KeyReleaseHandler
 	buttonPressHandler   ButtonPressHandler
@@ -46,7 +51,6 @@ type viewX11 struct {
 	createdHandler       CreatedHandler
 	closedHandler        ClosedHandler
 
-	imgWidth, imgHeight       int
 	winWidth, winHeight       int
 	screenWidth, screenHeight int
 
@@ -90,6 +94,7 @@ func newX11(opts Options) (*viewX11, error) {
 	if err != nil {
 		return v, fmt.Errorf("cannot parse color: %w", err)
 	}
+	v.bg = col
 	backPixel := uint32(col.A)<<24 + uint32(col.R)<<16 + uint32(col.G)<<8 + uint32(col.B)
 
 	x := int16(int(v.screenWidth)/2 - v.winWidth/2)
@@ -184,26 +189,11 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 		}
 	}
 
-	if len(args) > 1 {
-		val, ok := args[1].(bool)
-		if !ok {
-			return fmt.Errorf("invalid argument: %v", args[1])
-		}
-
-		if val && v.useShm {
-			if err := v.imageDestroy(); err != nil {
-				return fmt.Errorf("cannot destroy image: %w", err)
-			}
-		}
-	}
-
-	v.imgWidth = img.Bounds().Dx()
-	v.imgHeight = img.Bounds().Dy()
-
 	if v.useShm {
-		if err := v.imageCreate(img); err != nil {
+		if err := v.ensureBuffer(); err != nil {
 			return fmt.Errorf("cannot create image: %w", err)
 		}
+		v.compose(v.shmData, img)
 	}
 
 	event := xproto.ExposeEvent{Window: v.window, Width: uint16(v.winWidth), Height: uint16(v.winHeight)}
@@ -481,13 +471,7 @@ func (v *viewX11) Close() error {
 	return e
 }
 
-func (v *viewX11) Clear() {
-	if v.useShm {
-		_ = v.imageDestroy()
-	}
-
-	xproto.ClearArea(v.xc, false, v.window, 0, 0, 0, 0)
-}
+func (v *viewX11) Clear() {}
 
 func (v *viewX11) SetKeyPressHandler(handler KeyPressHandler) {
 	v.keyPressHandler = handler
@@ -533,10 +517,17 @@ func (v *viewX11) SetClosedHandler(handler ClosedHandler) {
 	v.closedHandler = handler
 }
 
-func (v *viewX11) imageCreate(img image.Image) error {
-	var err error
+func (v *viewX11) ensureBuffer() error {
+	if v.shmData != nil && v.bufW == v.winWidth && v.bufH == v.winHeight {
+		return nil
+	}
 
-	size := img.Bounds().Dx() * img.Bounds().Dy() * 4
+	if err := v.imageDestroy(); err != nil {
+		return err
+	}
+
+	var err error
+	size := v.winWidth * v.winHeight * 4
 
 	v.shmId, err = shm.Get(shm.IPC_PRIVATE, size, shm.IPC_CREAT|0666)
 	if err != nil {
@@ -555,9 +546,8 @@ func (v *viewX11) imageCreate(img image.Image) error {
 
 	mshm.Attach(v.xc, v.shmSeg, uint32(v.shmId), false)
 
-	src := imageToRGBA(img)
-	copy(v.shmData, src.Pix)
-	_ = swizzle.BGRA(v.shmData)
+	v.bufW = v.winWidth
+	v.bufH = v.winHeight
 
 	return nil
 }
@@ -580,47 +570,98 @@ func (v *viewX11) imageDestroy() error {
 	}
 
 	v.shmId = 0
+	v.shmSeg = 0
+	v.shmData = nil
+	v.bufW = 0
+	v.bufH = 0
 
 	return nil
 }
 
+func (v *viewX11) compose(data []byte, img image.Image) {
+	v.fill(data)
+	v.blit(data, imageToRGBA(img))
+}
+
+func (v *viewX11) fill(data []byte) {
+	px := [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
+
+	copy(data[0:4], px[:])
+	for f := 4; f < len(data); f *= 2 {
+		copy(data[f:], data[:f])
+	}
+}
+
+func (v *viewX11) blit(data []byte, src *image.RGBA) {
+	b := src.Bounds()
+	iw, ih := b.Dx(), b.Dy()
+
+	dx := (v.bufW - iw) / 2
+	dy := (v.bufH - ih) / 2
+	if dx < 0 {
+		dx = 0
+	}
+	if dy < 0 {
+		dy = 0
+	}
+
+	cols, rows := iw, ih
+	if dx+cols > v.bufW {
+		cols = v.bufW - dx
+	}
+	if dy+rows > v.bufH {
+		rows = v.bufH - dy
+	}
+
+	dStride := v.bufW * 4
+	for y := 0; y < rows; y++ {
+		so := y * src.Stride
+		do := (dy+y)*dStride + dx*4
+		row := data[do : do+cols*4]
+		copy(row, src.Pix[so:so+cols*4])
+		_ = swizzle.BGRA(row)
+	}
+}
+
 func (v *viewX11) imageShmPut() {
 	mshm.PutImage(v.xc, xproto.Drawable(v.window), v.gc,
-		uint16(v.imgWidth), uint16(v.imgHeight), // TotalWidth, TotalHeight,
+		uint16(v.bufW), uint16(v.bufH), // TotalWidth, TotalHeight,
 		0, 0, // SrcX, SrcY,
-		uint16(v.imgWidth), uint16(v.imgHeight), // SrcWidth, SrcHeight,
-		int16(v.winWidth-v.imgWidth)/2, int16(v.winHeight-v.imgHeight)/2, // DstX, DstY,
+		uint16(v.bufW), uint16(v.bufH), // SrcWidth, SrcHeight,
+		0, 0, // DstX, DstY,
 		v.screen.RootDepth, xproto.ImageFormatZPixmap, 0, v.shmSeg, 0)
 }
 
 func (v *viewX11) imagePut(img image.Image) {
-	widthPerReq := v.imgWidth
+	size := v.winWidth * v.winHeight * 4
+	if len(v.buf) != size {
+		v.buf = make([]byte, size)
+	}
+	v.bufW = v.winWidth
+	v.bufH = v.winHeight
+
+	v.compose(v.buf, img)
+
+	widthPerReq := v.bufW
 	rowPerReq := xPutImageReqDataSize / (widthPerReq * 4)
 	dataPerReq := rowPerReq * widthPerReq * 4
 
-	dstX := (v.winWidth - v.imgWidth) / 2
-	dstY := (v.winHeight - v.imgHeight) / 2
-
 	start := 0
 	end := 0
+	dstY := 0
 
-	src := imageToRGBA(img)
-	b := make([]byte, len(src.Pix))
-	copy(b, src.Pix)
-	_ = swizzle.BGRA(b)
-
-	for end < len(b) {
+	for end < len(v.buf) {
 		end = start + dataPerReq
-		if end > len(b) {
-			end = len(b)
+		if end > len(v.buf) {
+			end = len(v.buf)
 		}
 
-		data := b[start:end]
+		data := v.buf[start:end]
 		heightPerReq := len(data) / (widthPerReq * 4)
 
 		xproto.PutImage(v.xc, xproto.ImageFormatZPixmap, xproto.Drawable(v.window), v.gc,
 			uint16(widthPerReq), uint16(heightPerReq),
-			int16(dstX), int16(dstY),
+			0, int16(dstY),
 			0, v.screen.RootDepth, data)
 
 		start = end
