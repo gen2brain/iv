@@ -363,7 +363,13 @@ func (v *viewDRM) Close() error {
 	return e
 }
 
-func (v *viewDRM) Clear() {}
+func (v *viewDRM) Clear() {
+	for j := range v.msets {
+		ms := &v.msets[j]
+		v.fill(ms.back)
+		v.present(ms, int(ms.mode.Width), int(ms.mode.Height))
+	}
+}
 
 func (v *viewDRM) SetKeyPressHandler(handler KeyPressHandler) {
 	v.keyPressHandler = handler

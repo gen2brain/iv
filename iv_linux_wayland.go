@@ -879,7 +879,33 @@ func (v *viewWayland) Close() error {
 	return err
 }
 
-func (v *viewWayland) Clear() {}
+func (v *viewWayland) Clear() {
+	w, h := v.winWidth, v.winHeight
+	if w <= 0 || h <= 0 || !v.configured {
+		return
+	}
+
+	if err := v.ensurePool(w, h); err != nil {
+		return
+	}
+
+	b := v.acquire()
+	if b == nil {
+		return
+	}
+
+	v.image = nil
+	v.fill(b.data)
+
+	b.busy = true
+	v.current = b
+
+	v.surface.Attach(b.wl, 0, 0)
+	v.surface.DamageBuffer(0, 0, int32(w), int32(h))
+	v.surface.Commit()
+
+	_ = v.display.Flush()
+}
 
 func (v *viewWayland) SetKeyPressHandler(handler KeyPressHandler) {
 	v.keyPressHandler = handler

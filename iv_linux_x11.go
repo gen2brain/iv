@@ -471,7 +471,19 @@ func (v *viewX11) Close() error {
 	return e
 }
 
-func (v *viewX11) Clear() {}
+func (v *viewX11) Clear() {
+	if !v.useShm {
+		xproto.ClearArea(v.xc, false, v.window, 0, 0, 0, 0)
+		return
+	}
+
+	if err := v.ensureBuffer(); err != nil {
+		return
+	}
+
+	v.fill(v.shmData)
+	v.imageShmPut()
+}
 
 func (v *viewX11) SetKeyPressHandler(handler KeyPressHandler) {
 	v.keyPressHandler = handler

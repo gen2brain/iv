@@ -288,8 +288,6 @@ func (v *view) run() error {
 				v.frame = 0
 			}
 
-			v.view.Clear()
-
 			changed = true
 		}
 
