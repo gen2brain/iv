@@ -2,6 +2,8 @@ module github.com/gen2brain/iv/cmd/iv
 
 go 1.26
 
+replace github.com/gen2brain/iv => ../../
+
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/anthonynsimon/bild v0.15.0
@@ -9,13 +11,13 @@ require (
 	github.com/donatj/mpo v0.1.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fvbommel/sortorder v1.1.0
-	github.com/gen2brain/avif v0.5.0
-	github.com/gen2brain/heic v0.5.0
-	github.com/gen2brain/iv v0.1.0
-	github.com/gen2brain/jpegn v0.4.1
-	github.com/gen2brain/jpegxl v0.5.0
+	github.com/gen2brain/avif v0.5.2
+	github.com/gen2brain/heic v0.6.1
+	github.com/gen2brain/iv v0.0.0-00010101000000-000000000000
+	github.com/gen2brain/jpegn v0.4.2
+	github.com/gen2brain/jpegxl v0.5.2
 	github.com/gen2brain/svg v0.1.0
-	github.com/gen2brain/webp v0.6.0
+	github.com/gen2brain/webp v0.6.3
 	github.com/jbuchbinder/gopnm v0.0.0-20251119211316-bb594e0d2e34
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253
@@ -35,7 +37,7 @@ require (
 	github.com/dblohm7/wingoes v0.0.0-20260526185140-fb298caac7ca // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/gen2brain/shm v0.2.2 // indirect
-	github.com/gopherjs/gopherjs v1.20.2 // indirect
+	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/holoplot/go-evdev v0.0.0-20260504100651-66d1748fe847 // indirect
 	github.com/jezek/xgb v1.3.1 // indirect
 	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567 // indirect

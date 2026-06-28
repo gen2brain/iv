@@ -9,6 +9,7 @@ import (
 	"image/color"
 
 	"codeberg.org/tesselslate/wl"
+	"codeberg.org/tesselslate/wl-protocols/wp"
 	"codeberg.org/tesselslate/wl-protocols/xdg"
 	"codeberg.org/tesselslate/wl-protocols/zxdg"
 	"github.com/pbnjay/pixfont"
@@ -18,6 +19,8 @@ import (
 )
 
 const nbuf = 4
+
+const axisStep = 120
 
 type shmBuf struct {
 	wl   wl.Buffer
@@ -55,6 +58,11 @@ type viewWayland struct {
 	keyboard wl.Keyboard
 	pointer  wl.Pointer
 
+	cursorMgr    wp.CursorShapeManagerV1
+	hasCursorMgr bool
+	cursor       wp.CursorShapeDeviceV1
+	hasCursor    bool
+
 	hasOutput bool
 	useXBGR   bool
 	format    wl.ShmFormat
@@ -82,6 +90,7 @@ type viewWayland struct {
 	beat        bool
 	closed      bool
 	closedFired bool
+	axisAccum   int32
 
 	keyPressHandler      KeyPressHandler
 	keyReleaseHandler    KeyReleaseHandler
@@ -157,6 +166,9 @@ func newWayland(opts Options) (*viewWayland, error) {
 			case "xdg_toplevel_icon_manager_v1":
 				v.iconManager = xdg.ToplevelIconManagerV1(self.Bind(name, &xdg.ToplevelIconManagerV1Interface, version))
 				v.hasIconMgr = true
+			case "wp_cursor_shape_manager_v1":
+				v.cursorMgr = wp.CursorShapeManagerV1(self.Bind(name, &wp.CursorShapeManagerV1Interface, version))
+				v.hasCursorMgr = true
 			}
 			return nil
 		},
@@ -543,12 +555,19 @@ func (v *viewWayland) onCapabilities(_ any, self wl.Seat, caps wl.SeatCapability
 	if caps&wl.SeatCapabilityPointer != 0 && v.pointer == (wl.Pointer{}) {
 		v.pointer = self.GetPointer()
 		v.pointer.SetListener(wl.PointerListener{
-			Button: v.onButton,
-			Axis:   v.onAxis,
-			Motion: v.onMotion,
-			Enter:  v.onEnter,
-			Leave:  v.onLeave,
+			Button:       v.onButton,
+			AxisValue120: v.onAxisValue120,
+			AxisDiscrete: v.onAxisDiscrete,
+			Frame:        v.onPointerFrame,
+			Motion:       v.onMotion,
+			Enter:        v.onEnter,
+			Leave:        v.onLeave,
 		}, nil)
+
+		if v.hasCursorMgr {
+			v.cursor = v.cursorMgr.GetPointer(v.pointer)
+			v.hasCursor = true
+		}
 	}
 
 	return nil
@@ -589,14 +608,34 @@ func (v *viewWayland) onButton(_ any, _ wl.Pointer, _, _, button uint32, state w
 	return nil
 }
 
-func (v *viewWayland) onAxis(_ any, _ wl.Pointer, _ uint32, axis wl.PointerAxis, value float64) error {
-	if axis != wl.PointerAxisVerticalScroll || v.scrollHandler == nil {
+func (v *viewWayland) onAxisValue120(_ any, _ wl.Pointer, axis wl.PointerAxis, value120 int32) error {
+	if axis == wl.PointerAxisVerticalScroll {
+		v.axisAccum += value120
+	}
+
+	return nil
+}
+
+func (v *viewWayland) onAxisDiscrete(_ any, _ wl.Pointer, axis wl.PointerAxis, discrete int32) error {
+	if axis == wl.PointerAxisVerticalScroll {
+		v.axisAccum += discrete * axisStep
+	}
+
+	return nil
+}
+
+func (v *viewWayland) onPointerFrame(_ any, _ wl.Pointer) error {
+	if v.scrollHandler == nil {
+		v.axisAccum = 0
 		return nil
 	}
 
-	if value > 0 {
+	for v.axisAccum >= axisStep {
+		v.axisAccum -= axisStep
 		v.scrollHandler(ScrollDown)
-	} else if value < 0 {
+	}
+	for v.axisAccum <= -axisStep {
+		v.axisAccum += axisStep
 		v.scrollHandler(ScrollUp)
 	}
 
@@ -611,7 +650,11 @@ func (v *viewWayland) onMotion(_ any, _ wl.Pointer, _ uint32, x, y float64) erro
 	return nil
 }
 
-func (v *viewWayland) onEnter(_ any, _ wl.Pointer, _ uint32, _ wl.Surface, _, _ float64) error {
+func (v *viewWayland) onEnter(_ any, _ wl.Pointer, serial uint32, _ wl.Surface, _, _ float64) error {
+	if v.hasCursor {
+		v.cursor.SetShape(serial, wp.CursorShapeDeviceV1ShapeDefault)
+	}
+
 	if v.enterHandler != nil {
 		v.enterHandler()
 	}
@@ -751,6 +794,10 @@ func (v *viewWayland) Close() error {
 	if v.keyboard != (wl.Keyboard{}) {
 		v.keyboard.Release()
 		v.keyboard = wl.Keyboard{}
+	}
+	if v.hasCursor {
+		v.cursor.Destroy()
+		v.hasCursor = false
 	}
 	if v.pointer != (wl.Pointer{}) {
 		v.pointer.Release()
