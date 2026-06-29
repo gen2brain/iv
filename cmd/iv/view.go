@@ -1186,6 +1186,7 @@ func (v *view) onButtonPress(button int) {
 	if (button == iv.ButtonLeft || button == iv.ButtonMiddle) && v.pannable() {
 		v.panning = true
 		v.panButton = button
+		_ = v.view.SetCursor(iv.CursorGrabbing)
 	}
 
 	if button != iv.ButtonLeft {
@@ -1202,6 +1203,7 @@ func (v *view) onButtonPress(button int) {
 func (v *view) onButtonRelease(button int) {
 	if v.panning && button == v.panButton {
 		v.panning = false
+		_ = v.view.SetCursor(iv.CursorDefault)
 	}
 }
 

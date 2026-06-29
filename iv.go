@@ -10,6 +10,24 @@ import (
 	"runtime"
 )
 
+// Cursor is a window cursor shape. Backends map each to the closest native cursor.
+type Cursor int
+
+const (
+	// CursorDefault is the arrow cursor.
+	CursorDefault Cursor = iota
+	// CursorPointer is the pointing hand, used for links.
+	CursorPointer
+	// CursorGrab is the open hand.
+	CursorGrab
+	// CursorGrabbing is the closed hand, shown while dragging.
+	CursorGrabbing
+	// CursorText is the text I-beam.
+	CursorText
+	// CursorCrosshair is the crosshair.
+	CursorCrosshair
+)
+
 // Viewer interface.
 type Viewer interface {
 	Driver() string
@@ -20,6 +38,7 @@ type Viewer interface {
 	Raise() error
 	SetTitle(string) error
 	SetIcon(image.Image) error
+	SetCursor(Cursor) error
 	ScreenSize() (int, int)
 	WindowSize() (int, int)
 	Close() error

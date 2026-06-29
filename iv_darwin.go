@@ -81,6 +81,13 @@ var (
 	selSetAcceptsMouseMoved  = objc.RegisterName("setAcceptsMouseMovedEvents:")
 	selToggleFullScreen      = objc.RegisterName("toggleFullScreen:")
 	selZoom                  = objc.RegisterName("zoom:")
+	selSet                   = objc.RegisterName("set")
+	selArrowCursor           = objc.RegisterName("arrowCursor")
+	selPointingHandCursor    = objc.RegisterName("pointingHandCursor")
+	selOpenHandCursor        = objc.RegisterName("openHandCursor")
+	selClosedHandCursor      = objc.RegisterName("closedHandCursor")
+	selIBeamCursor           = objc.RegisterName("IBeamCursor")
+	selCrosshairCursor       = objc.RegisterName("crosshairCursor")
 	selBackingScaleFactor    = objc.RegisterName("backingScaleFactor")
 	selFrame                 = objc.RegisterName("frame")
 	selConvertSizeToBacking  = objc.RegisterName("convertSizeToBacking:")
@@ -451,6 +458,29 @@ func (v *View) Fullscreen() bool {
 // Maximize maximizes the window to the available work area.
 func (v *View) Maximize() error {
 	v.window.Send(selZoom, objc.ID(0))
+
+	return nil
+}
+
+// SetCursor sets the application cursor via NSCursor.
+func (v *View) SetCursor(c Cursor) error {
+	var sel objc.SEL
+	switch c {
+	case CursorPointer:
+		sel = selPointingHandCursor
+	case CursorGrab:
+		sel = selOpenHandCursor
+	case CursorGrabbing:
+		sel = selClosedHandCursor
+	case CursorText:
+		sel = selIBeamCursor
+	case CursorCrosshair:
+		sel = selCrosshairCursor
+	default:
+		sel = selArrowCursor
+	}
+
+	objc.ID(objc.GetClass("NSCursor")).Send(sel).Send(selSet)
 
 	return nil
 }

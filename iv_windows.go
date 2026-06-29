@@ -31,6 +31,7 @@ type View struct {
 	hwnd          win.HWND
 	hBitmap       win.HBITMAP
 	hIcon         win.HICON
+	hCursor       win.HCURSOR
 	winPlacement  *win.WINDOWPLACEMENT
 	lpszClassName *uint16
 	background    win.HBRUSH
@@ -216,6 +217,29 @@ func (v *View) Fullscreen() bool {
 // Maximize maximizes the window to the available work area.
 func (v *View) Maximize() error {
 	win.ShowWindow(v.hwnd, win.SW_SHOWMAXIMIZED)
+
+	return nil
+}
+
+func winCursorID(c Cursor) int {
+	switch c {
+	case CursorPointer, CursorGrab:
+		return win.IDC_HAND
+	case CursorGrabbing:
+		return win.IDC_SIZEALL
+	case CursorText:
+		return win.IDC_IBEAM
+	case CursorCrosshair:
+		return win.IDC_CROSS
+	default:
+		return win.IDC_ARROW
+	}
+}
+
+// SetCursor sets the window cursor (re-applied in WM_SETCURSOR).
+func (v *View) SetCursor(c Cursor) error {
+	v.hCursor = win.LoadCursor(0, win.MAKEINTRESOURCE(winCursorID(c)))
+	win.SetCursor(v.hCursor)
 
 	return nil
 }
@@ -532,6 +556,11 @@ func (v *View) wndProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintpt
 		}
 
 		return 0
+	case win.WM_SETCURSOR:
+		if uint32(lParam)&0xffff == win.HTCLIENT && v.hCursor != 0 {
+			win.SetCursor(v.hCursor)
+			return 1
+		}
 	case win.WM_ERASEBKGND:
 		return 1
 	case win.WM_PAINT:

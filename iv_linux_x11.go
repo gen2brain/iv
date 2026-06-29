@@ -39,6 +39,9 @@ type viewX11 struct {
 	buf        []byte
 	bufW, bufH int
 
+	cursorFont xproto.Font
+	cursors    map[Cursor]xproto.Cursor
+
 	keyPressHandler      KeyPressHandler
 	keyReleaseHandler    KeyReleaseHandler
 	buttonPressHandler   ButtonPressHandler
@@ -62,6 +65,7 @@ type viewX11 struct {
 
 func newX11(opts Options) (*viewX11, error) {
 	v := &viewX11{}
+	v.cursors = map[Cursor]xproto.Cursor{}
 
 	var err error
 	xgb.Logger = log.New(io.Discard, "", 0)
@@ -358,6 +362,65 @@ func (v *viewX11) Maximize() error {
 	return xproto.SendEventChecked(v.xc, false, v.screen.Root, uint32(evMask), string(ev.Bytes())).Check()
 }
 
+// x11Glyph maps a cursor to a core "cursor" font glyph (grabbing uses fleur, no closed-hand glyph exists).
+func x11Glyph(c Cursor) uint16 {
+	switch c {
+	case CursorPointer:
+		return 60 // hand2
+	case CursorGrab:
+		return 58 // hand1
+	case CursorGrabbing:
+		return 52 // fleur
+	case CursorText:
+		return 152 // xterm
+	case CursorCrosshair:
+		return 34 // crosshair
+	default:
+		return 68 // left_ptr
+	}
+}
+
+func (v *viewX11) cursorFor(c Cursor) (xproto.Cursor, error) {
+	if cur, ok := v.cursors[c]; ok {
+		return cur, nil
+	}
+
+	if v.cursorFont == 0 {
+		f, err := xproto.NewFontId(v.xc)
+		if err != nil {
+			return 0, err
+		}
+		if err := xproto.OpenFontChecked(v.xc, f, uint16(len("cursor")), "cursor").Check(); err != nil {
+			return 0, err
+		}
+		v.cursorFont = f
+	}
+
+	cid, err := xproto.NewCursorId(v.xc)
+	if err != nil {
+		return 0, err
+	}
+
+	g := x11Glyph(c)
+	if err := xproto.CreateGlyphCursorChecked(v.xc, cid, v.cursorFont, v.cursorFont,
+		g, g+1, 0, 0, 0, 0xffff, 0xffff, 0xffff).Check(); err != nil {
+		return 0, err
+	}
+
+	v.cursors[c] = cid
+
+	return cid, nil
+}
+
+func (v *viewX11) SetCursor(c Cursor) error {
+	cid, err := v.cursorFor(c)
+	if err != nil {
+		return err
+	}
+
+	return xproto.ChangeWindowAttributesChecked(v.xc, v.window, xproto.CwCursor, []uint32{uint32(cid)}).Check()
+}
+
 func (v *viewX11) Raise() error {
 	name := "_NET_ACTIVE_WINDOW"
 	atom, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()
@@ -478,6 +541,13 @@ func (v *viewX11) Close() error {
 		if err != nil {
 			e = errors.Join(e, err)
 		}
+	}
+
+	for _, cid := range v.cursors {
+		_ = xproto.FreeCursorChecked(v.xc, cid).Check()
+	}
+	if v.cursorFont != 0 {
+		_ = xproto.CloseFontChecked(v.xc, v.cursorFont).Check()
 	}
 
 	err := xproto.FreeGCChecked(v.xc, v.gc).Check()

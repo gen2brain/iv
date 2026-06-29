@@ -233,6 +233,10 @@ func (v *viewDRM) Maximize() error {
 	return nil
 }
 
+func (v *viewDRM) SetCursor(Cursor) error {
+	return nil
+}
+
 func (v *viewDRM) Raise() error {
 	return nil
 }

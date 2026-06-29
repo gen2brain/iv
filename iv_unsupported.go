@@ -46,6 +46,10 @@ func (v *View) Maximize() error {
 	return nil
 }
 
+func (v *View) SetCursor(c Cursor) error {
+	return nil
+}
+
 func (v *View) ScreenSize() (int, int) {
 	return 0, 0
 }

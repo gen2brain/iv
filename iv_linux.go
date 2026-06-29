@@ -99,6 +99,11 @@ func (v *View) Maximize() error {
 	return v.viewer.Maximize()
 }
 
+// SetCursor sets the window cursor shape.
+func (v *View) SetCursor(c Cursor) error {
+	return v.viewer.SetCursor(c)
+}
+
 // SetTitle sets window title.
 func (v *View) SetTitle(title string) error {
 	return v.viewer.SetTitle(title)

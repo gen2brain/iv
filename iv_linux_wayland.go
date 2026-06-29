@@ -63,6 +63,8 @@ type viewWayland struct {
 	hasCursorMgr bool
 	cursor       wp.CursorShapeDeviceV1
 	hasCursor    bool
+	cursorShape  wp.CursorShapeDeviceV1Shape
+	enterSerial  uint32
 
 	hasOutput bool
 	useXBGR   bool
@@ -117,6 +119,7 @@ func newWayland(opts Options) (*viewWayland, error) {
 	v.winHeight = opts.Height
 	v.repeatRate = 25
 	v.repeatDelay = 500
+	v.cursorShape = wp.CursorShapeDeviceV1ShapeDefault
 
 	bg, err := parseHexColor(opts.BackgroundColor)
 	if err != nil {
@@ -712,8 +715,9 @@ func (v *viewWayland) onMotion(_ any, _ wl.Pointer, _ uint32, x, y float64) erro
 }
 
 func (v *viewWayland) onEnter(_ any, _ wl.Pointer, serial uint32, _ wl.Surface, _, _ float64) error {
+	v.enterSerial = serial
 	if v.hasCursor {
-		v.cursor.SetShape(serial, wp.CursorShapeDeviceV1ShapeDefault)
+		v.cursor.SetShape(serial, v.cursorShape)
 	}
 
 	if v.enterHandler != nil {
@@ -721,6 +725,35 @@ func (v *viewWayland) onEnter(_ any, _ wl.Pointer, serial uint32, _ wl.Surface, 
 	}
 
 	return nil
+}
+
+func wlCursorShape(c Cursor) wp.CursorShapeDeviceV1Shape {
+	switch c {
+	case CursorPointer:
+		return wp.CursorShapeDeviceV1ShapePointer
+	case CursorGrab:
+		return wp.CursorShapeDeviceV1ShapeGrab
+	case CursorGrabbing:
+		return wp.CursorShapeDeviceV1ShapeGrabbing
+	case CursorText:
+		return wp.CursorShapeDeviceV1ShapeText
+	case CursorCrosshair:
+		return wp.CursorShapeDeviceV1ShapeCrosshair
+	default:
+		return wp.CursorShapeDeviceV1ShapeDefault
+	}
+}
+
+func (v *viewWayland) SetCursor(c Cursor) error {
+	v.cursorShape = wlCursorShape(c)
+
+	if !v.hasCursor || v.enterSerial == 0 {
+		return nil
+	}
+
+	v.cursor.SetShape(v.enterSerial, v.cursorShape)
+
+	return v.display.Flush()
 }
 
 func (v *viewWayland) onLeave(_ any, _ wl.Pointer, _ uint32, _ wl.Surface) error {
