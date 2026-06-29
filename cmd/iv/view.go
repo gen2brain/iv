@@ -103,6 +103,9 @@ type view struct {
 	lastClick      time.Time
 	count          int
 
+	panning   bool
+	panButton int
+
 	origs  []*image.RGBA
 	frames []*image.RGBA
 	delays []time.Duration
@@ -199,6 +202,7 @@ func newView(opts options, args []info) (*view, error) {
 	vw.SetScrollHandler(v.onScroll)
 	vw.SetMotionHandler(v.onMotion)
 	vw.SetButtonPressHandler(v.onButtonPress)
+	vw.SetButtonReleaseHandler(v.onButtonRelease)
 
 	v.zoom = opts.Zoom
 	v.contrast = opts.Contrast
@@ -1126,7 +1130,45 @@ func (v *view) zoomAt(key, cx, cy int) {
 }
 
 func (v *view) onMotion(x, y int) {
+	if v.panning {
+		v.panBy(x-v.mouseX, y-v.mouseY)
+	}
+
 	v.mouseX, v.mouseY = x, y
+}
+
+// pannable reports whether the zoomed image is larger than the window in either dimension.
+func (v *view) pannable() bool {
+	return v.zoom != 0 && (v.bounds.Dx() > v.width || v.bounds.Dy() > v.height)
+}
+
+// panBy shifts the focus point by a window-pixel drag delta so the image follows the cursor.
+func (v *view) panBy(dx, dy int) {
+	if dx == 0 && dy == 0 {
+		return
+	}
+
+	sw, sh := v.srcBounds.Dx(), v.srcBounds.Dy()
+	s := float64(v.zoom) / 100
+	if sw == 0 || sh == 0 || s <= 0 {
+		return
+	}
+
+	fx, fy := v.fx, v.fy
+	if fx < 0 {
+		fx = float64(sw) / 2
+	}
+	if fy < 0 {
+		fy = float64(sh) / 2
+	}
+
+	fx -= float64(dx) / s
+	fy -= float64(dy) / s
+
+	v.fx = min(max(fx, 0), float64(sw))
+	v.fy = min(max(fy, 0), float64(sh))
+
+	v.rebuild()
 }
 
 func (v *view) doubleClick(now time.Time) bool {
@@ -1141,6 +1183,11 @@ func (v *view) doubleClick(now time.Time) bool {
 }
 
 func (v *view) onButtonPress(button int) {
+	if (button == iv.ButtonLeft || button == iv.ButtonMiddle) && v.pannable() {
+		v.panning = true
+		v.panButton = button
+	}
+
 	if button != iv.ButtonLeft {
 		return
 	}
@@ -1149,6 +1196,12 @@ func (v *view) onButtonPress(button int) {
 		if err := v.view.ToggleFullscreen(); err != nil {
 			stderr(err)
 		}
+	}
+}
+
+func (v *view) onButtonRelease(button int) {
+	if v.panning && button == v.panButton {
+		v.panning = false
 	}
 }
 

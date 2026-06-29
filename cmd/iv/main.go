@@ -183,6 +183,7 @@ func printKeys() {
 		{"Zoom out", "- / Ctrl+Scroll Down"},
 		{"Original size", "Shift+9"},
 		{"Fit", "Shift+0"},
+		{"Pan zoomed image", "Left / Middle drag"},
 		{"Adjust contrast", "Shift+1 / Shift+2"},
 		{"Adjust brightness", "Shift+3 / Shift+4"},
 		{"Adjust gamma", "Shift+5 / Shift+6"},

@@ -156,3 +156,37 @@ func TestZoomAt(t *testing.T) {
 		t.Fatalf("focus=(%.0f,%.0f), want (600,500)", v.fx, v.fy)
 	}
 }
+
+func TestPanBy(t *testing.T) {
+	// 1000x1000 source at 200% in a 500x500 window: zoomed exceeds window, so pannable.
+	v := &view{
+		width:     500,
+		height:    500,
+		srcBounds: image.Rect(0, 0, 1000, 1000),
+		bounds:    image.Rect(0, 0, 2000, 2000),
+		zoom:      200,
+		fx:        -1,
+		fy:        -1,
+		cancel:    func() {},
+	}
+
+	if !v.pannable() {
+		t.Fatal("expected pannable when zoomed beyond the window")
+	}
+
+	v.panBy(100, 60)
+	if v.fx != 450 || v.fy != 470 {
+		t.Fatalf("focus=(%.0f,%.0f), want (450,470)", v.fx, v.fy)
+	}
+
+	v.fx, v.fy = 10, 10
+	v.panBy(1000, 1000)
+	if v.fx != 0 || v.fy != 0 {
+		t.Fatalf("focus=(%.0f,%.0f), want (0,0)", v.fx, v.fy)
+	}
+
+	v.zoom = 0
+	if v.pannable() {
+		t.Fatal("expected not pannable at fit")
+	}
+}
