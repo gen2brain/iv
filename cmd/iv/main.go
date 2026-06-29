@@ -43,7 +43,8 @@ func main() {
 	flag.BoolVar(&opts.Maximize, "maximize", false, "Start maximized [IV_MAXIMIZE].")
 	flag.BoolVar(&opts.Browse, "browse", true, "Load all images from the image directory [IV_BROWSE].")
 	flag.BoolVar(&opts.Loop, "loop", false, "Wrap around at the first/last image [IV_LOOP].")
-	flag.IntVar(&opts.Sort, "sort", 0, "0=No sort, 1=Name (natural order), 2=MTime, 3=Size, 4=Shuffle [IV_SORT].")
+	flag.BoolVar(&opts.Preload, "preload", false, "Preload adjacent images (uses more memory) [IV_PRELOAD].")
+	flag.IntVar(&opts.Sort, "sort", 0, "0=No sort, 1=Name (natural order), 2=Modification time, 3=Size, 4=Shuffle [IV_SORT].")
 	flag.StringVar(&opts.TextColor, "text-color", "#FFFFFF", "Text color [IV_TEXT_COLOR].")
 	flag.StringVar(&opts.BackgroundColor, "background-color", "#000000", "Window background color [IV_BACKGROUND_COLOR].")
 	flag.IntVar(&opts.Zoom, "zoom", 0, "Initial zoom level (1, 1000) [IV_ZOOM].")
@@ -62,7 +63,7 @@ func main() {
 
 		stderrf("%s %s [<flags>] [file1 dir1 url1 ... fileOrDirN]\n", colorize(color, colorBold, "Usage:"), appName)
 		order := []string{"width", "height", "device", "filter", "title", "slideshow", "slideshow-interval", "recursive",
-			"fullscreen", "browse", "loop", "sort", "text-color", "background-color", "zoom", "contrast", "brightness", "gamma", "saturation",
+			"fullscreen", "maximize", "browse", "loop", "preload", "sort", "text-color", "background-color", "zoom", "contrast", "brightness", "gamma", "saturation",
 			"single", "wait", "help-keys"}
 
 		for _, name := range order {

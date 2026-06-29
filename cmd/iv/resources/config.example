@@ -31,11 +31,17 @@ recursive false
 # Start in fullscreen
 fullscreen false
 
+# Start maximized
+maximize false
+
 # Load all images from the image directory
 browse true
 
 # Wrap around at the first/last image
 loop false
+
+# Preload adjacent images (uses more memory)
+preload false
 
 # Sort by (0=No sort, 1=Name (natural order), 2=Modification time, 3=Size, 4=Shuffle)
 sort 0

@@ -54,6 +54,7 @@ type options struct {
 	Maximize          bool
 	Browse            bool
 	Loop              bool
+	Preload           bool
 	Sort              int
 	TextColor         string
 	BackgroundColor   string
@@ -106,6 +107,11 @@ type view struct {
 	frames []*image.RGBA
 	delays []time.Duration
 
+	decodeMu sync.Mutex
+	cache    map[int]*decoded
+	inflight map[int]bool
+	cacheGen int
+
 	filter transform.ResampleFilter
 
 	zoom       int
@@ -155,6 +161,8 @@ type view struct {
 func newView(opts options, args []info) (*view, error) {
 	v := &view{}
 	v.opts = opts
+	v.cache = map[int]*decoded{}
+	v.inflight = map[int]bool{}
 
 	vw, err := iv.New(iv.Options{
 		AppID:           "iv",
@@ -379,10 +387,45 @@ func (v *view) advance(n int) {
 	v.needDecode = true
 }
 
+// decoded holds the decoded frames of one image, ready for buildFrames.
+type decoded struct {
+	origs  []*image.RGBA
+	delays []time.Duration
+	anim   bool
+}
+
+// decodeInfo decodes a single image without touching view state, so preload goroutines can use it.
+func decodeInfo(a info) (*decoded, error) {
+	if a.IsAnimation {
+		ret, delay, err := decodeAll(a)
+		if err == nil && len(ret) > 1 {
+			origs := make([]*image.RGBA, 0, len(ret))
+			for _, r := range ret {
+				origs = append(origs, clone.AsShallowRGBA(r))
+			}
+
+			return &decoded{origs: origs, delays: delay, anim: true}, nil
+		}
+	}
+
+	img, err := decode(a)
+	if err != nil {
+		return nil, err
+	}
+
+	return &decoded{origs: []*image.RGBA{img}}, nil
+}
+
+// decodeLocked serializes decode calls so a background preload never runs a decoder concurrently with the main one.
+func (v *view) decodeLocked(a info) (*decoded, error) {
+	v.decodeMu.Lock()
+	defer v.decodeMu.Unlock()
+
+	return decodeInfo(a)
+}
+
 func (v *view) decodeCurrent() error {
-	v.origs = nil
 	v.frames = nil
-	v.delays = nil
 
 	v.rotation = 0
 	v.flipH = false
@@ -399,34 +442,122 @@ func (v *view) decodeCurrent() error {
 			cur = abs
 		}
 	}
+
 	v.mu.Lock()
 	v.currentPath = cur
+	d := v.cache[v.idx]
+	gen := v.cacheGen
 	v.mu.Unlock()
 
-	if a.IsAnimation {
-		ret, delay, err := decodeAll(a)
-		if err == nil && len(ret) > 1 {
-			v.origs = make([]*image.RGBA, 0, len(ret))
-			for _, r := range ret {
-				v.origs = append(v.origs, clone.AsShallowRGBA(r))
-			}
+	if d == nil {
+		v.origs = nil
+		v.delays = nil
 
-			v.delays = delay
-
-			return nil
+		var err error
+		d, err = v.decodeLocked(a)
+		if err != nil {
+			return err
 		}
 
-		v.args[v.idx].IsAnimation = false
+		if v.opts.Preload {
+			v.mu.Lock()
+			if gen == v.cacheGen {
+				v.cache[v.idx] = d
+			}
+			v.mu.Unlock()
+		}
 	}
 
-	img, err := decode(a)
-	if err != nil {
-		return err
-	}
+	v.origs = d.origs
+	v.delays = d.delays
+	v.args[v.idx].IsAnimation = d.anim
 
-	v.origs = []*image.RGBA{img}
+	v.preload()
 
 	return nil
+}
+
+// preload decodes the immediate neighbors in the background and evicts everything outside the window.
+func (v *view) preload() {
+	if !v.opts.Preload || len(v.args) < 2 {
+		return
+	}
+
+	keep := map[int]bool{v.idx: true}
+	for _, idx := range v.neighborIdxs() {
+		keep[idx] = true
+		v.preloadOne(idx)
+	}
+
+	v.mu.Lock()
+	for k := range v.cache {
+		if !keep[k] {
+			delete(v.cache, k)
+		}
+	}
+	v.mu.Unlock()
+}
+
+func (v *view) neighborIdxs() []int {
+	n := len(v.args)
+
+	next := v.idx + 1
+	if next >= n {
+		next = -1
+		if v.loop {
+			next = 0
+		}
+	}
+
+	prev := v.idx - 1
+	if prev < 0 {
+		prev = -1
+		if v.loop {
+			prev = n - 1
+		}
+	}
+
+	var out []int
+	if next >= 0 && next != v.idx {
+		out = append(out, next)
+	}
+	if prev >= 0 && prev != v.idx && prev != next {
+		out = append(out, prev)
+	}
+
+	return out
+}
+
+func (v *view) preloadOne(idx int) {
+	v.mu.Lock()
+	if v.cache[idx] != nil || v.inflight[idx] {
+		v.mu.Unlock()
+		return
+	}
+	v.inflight[idx] = true
+	gen := v.cacheGen
+	a := v.args[idx]
+	v.mu.Unlock()
+
+	go func() {
+		d, err := v.decodeLocked(a)
+
+		v.mu.Lock()
+		delete(v.inflight, idx)
+		if err == nil && gen == v.cacheGen {
+			v.cache[idx] = d
+		}
+		v.mu.Unlock()
+	}()
+}
+
+// cacheClear drops all preloaded images; called when the argument list changes under the indexes.
+func (v *view) cacheClear() {
+	v.mu.Lock()
+	v.cache = map[int]*decoded{}
+	v.inflight = map[int]bool{}
+	v.cacheGen++
+	v.mu.Unlock()
 }
 
 func (v *view) buildFrames() {
@@ -569,6 +700,7 @@ func (v *view) drainWatch() bool {
 	switch {
 	case len(v.args) == 0:
 	case reload:
+		v.cacheClear()
 		v.needDecode = true
 		v.decodeAt = time.Time{}
 	case v.opts.Title:
