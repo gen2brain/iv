@@ -2,10 +2,12 @@
 
 package main
 
-func absPaths(a []string) []string { return a }
+import (
+	"os"
+	"path/filepath"
+)
 
-func sendToRunning(paths []string) bool { return false }
-
-func (v *view) serveIPC() {}
-
-func (v *view) closeIPC() {}
+// singleSocketPath returns the AF_UNIX socket path under the per-user temp dir (Windows 10 1803+).
+func singleSocketPath() string {
+	return filepath.Join(os.TempDir(), "iv.sock")
+}

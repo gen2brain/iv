@@ -1,26 +1,13 @@
-//go:build !windows
-
 package main
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/adrg/xdg"
 )
-
-func singleSocketPath() string {
-	if xdg.RuntimeDir == "" {
-		return filepath.Join(os.TempDir(), fmt.Sprintf("iv-%d.sock", os.Getuid()))
-	}
-
-	return filepath.Join(xdg.RuntimeDir, "iv.sock")
-}
 
 func absPaths(a []string) []string {
 	out := make([]string, 0, len(a))
