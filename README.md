@@ -69,6 +69,9 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 *Zoom In, Zoom Out, Original Size, Fit*
 * `+` / `Ctrl+Scroll Up`, `-` / `Ctrl+Scroll Down`, `Shift+9`, `Shift+0`
 
+*Pan zoomed image*
+* `Left` / `Middle` drag
+
 *Adjust Contrast*
 * `Shift+1`, `Shift+2`
 
@@ -138,6 +141,8 @@ Usage: iv [<flags>] [file1 dir1 url1 ... fileOrDirN]
     	Load all images from the image directory [IV_BROWSE]. (default "true")
   --loop
     	Wrap around at the first/last image [IV_LOOP]. (default "false")
+  --preload
+    	Preload adjacent images (uses more memory) [IV_PRELOAD]. (default "false")
   --sort
     	0=No sort, 1=Name (natural order), 2=Modification time, 3=Size, 4=Shuffle [IV_SORT]. (default "0")
   --text-color
