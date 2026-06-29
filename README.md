@@ -11,6 +11,7 @@ Small and simple image viewer.
 * **Platforms:** Linux (X11, Wayland, DRM), Windows (Win32), macOS (Cocoa), BSDs (X11)
 * **Formats:** JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM/PBM/PGM/PPM, SVG, PSD, PSP, MPO, QOI
 * **Animation:** GIF, PNG, WEBP, AVIF, JXL
+* **Auto-rotate:** applies the EXIF orientation (JPEG, WEBP)
 * **URLs:** HTTP arguments, and image scraping from HTML pages
 * **Auto-reload:** when the current image is modified or its directory changes
 * **Single instance:** open files in an already-running window
@@ -33,7 +34,7 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 ### Build tags
 
 * `minimal` - build support only for JPEG, GIF and PNG (stdlib only)
-* `nodynamic` - decode WEBP, AVIF, JXL and HEIC with Go decoders instead of the system shared libraries (`libwebp`, `libavif`, `libjxl`, `libheif`)
+* `nodynamic` - do not use system shared libraries (`libwebp`, `libavif`, `libjxl`, `libheif`)
 * `x11` - use X11 in macOS or Windows (e.g., via [XQuartz](https://en.wikipedia.org/wiki/XQuartz) or [Xming](https://en.wikipedia.org/wiki/Xming))
 
 ### Keybindings
@@ -131,6 +132,8 @@ Usage: iv [<flags>] [file1 dir1 url1 ... fileOrDirN]
     	Process subdirectories recursively [IV_RECURSIVE]. (default "false")
   --fullscreen
     	Start in fullscreen [IV_FULLSCREEN]. (default "false")
+  --maximize
+    	Start maximized [IV_MAXIMIZE]. (default "false")
   --browse
     	Load all images from the image directory [IV_BROWSE]. (default "true")
   --loop
@@ -155,6 +158,8 @@ Usage: iv [<flags>] [file1 dir1 url1 ... fileOrDirN]
     	Single instance; send files to a running window [IV_SINGLE]. (default "false")
   --wait
     	Open a blank window and wait for images (use with --single) [IV_WAIT]. (default "false")
+  --help-keys
+    	Show keybindings and exit. (default "false")
 ```
 
 On Linux, you can also use `IV_DRIVER` env var, i.e. `IV_DRIVER=x11` will force X11 compatibility mode on Wayland.
