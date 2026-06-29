@@ -206,7 +206,7 @@ func (v *viewDRM) Display(ctx context.Context, img image.Image, args ...any) err
 					continue
 				}
 
-				if ev.Value == 1 {
+				if ev.Value == 1 || ev.Value == 2 {
 					if v.keyPressHandler != nil {
 						v.keyPressHandler(val)
 					}
