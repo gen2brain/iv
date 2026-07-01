@@ -90,6 +90,9 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 *Flip (horizontal / vertical)*
 * `h` / `v`
 
+*Cycle scaling filter (nearest / linear / bicubic)*
+* `a`
+
 *Mark / unmark image (printed to stdout on quit)*
 * `m`
 
