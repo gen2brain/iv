@@ -83,6 +83,7 @@ type title struct {
 	Brightness int
 	Gamma      int
 	Saturation int
+	Marked     bool
 }
 
 type view struct {
@@ -105,6 +106,8 @@ type view struct {
 
 	panning   bool
 	panButton int
+
+	marked map[string]bool
 
 	origs  []*image.RGBA
 	frames []*image.RGBA
@@ -166,6 +169,7 @@ func newView(opts options, args []info) (*view, error) {
 	v.opts = opts
 	v.cache = map[int]*decoded{}
 	v.inflight = map[int]bool{}
+	v.marked = map[string]bool{}
 
 	vw, err := iv.New(iv.Options{
 		AppID:           "iv",
@@ -241,6 +245,8 @@ func newView(opts options, args []info) (*view, error) {
 }
 
 func (v *view) run() error {
+	defer v.printMarked()
+
 	v.needDecode = true
 	v.needBuild = true
 
@@ -871,6 +877,21 @@ func (v *view) onKeyPress(key int) {
 		return
 	}
 
+	if key == iv.KeyM {
+		name := v.args[v.idx].Name
+		if v.marked[name] {
+			delete(v.marked, name)
+		} else {
+			v.marked[name] = true
+		}
+
+		if v.opts.Title {
+			_ = v.view.SetTitle(v.formatTitle(false))
+		}
+
+		return
+	}
+
 	if key == iv.KeyEscape || key == iv.KeyQ {
 		v.closed = true
 		v.cancel()
@@ -1363,6 +1384,15 @@ func (v *view) handleIndex(key int) {
 	}
 }
 
+// printMarked writes the marked image paths to stdout in argument order, on exit.
+func (v *view) printMarked() {
+	for _, a := range v.args {
+		if v.marked[a.Name] {
+			fmt.Println(a.Name)
+		}
+	}
+}
+
 func (v *view) formatTitle(loading bool) string {
 	var out string
 
@@ -1379,7 +1409,7 @@ func (v *view) formatTitle(loading bool) string {
 
 	t := title{appName, appVersion, v.idx + 1, len(v.args), a.Name,
 		a.Base, a.Width, a.Height, size,
-		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation}
+		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation, v.marked[a.Name]}
 
 	if loading {
 		var b bytes.Buffer

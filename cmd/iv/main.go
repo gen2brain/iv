@@ -25,7 +25,7 @@ func main() {
 
 	var opts options
 
-	titleFormat := "{{.App}} {{.Version}} [{{.Index}}/{{.Count}}] - {{.Name}} ({{.Width}}x{{.Height}}{{if .Size}}, {{.Size}}{{end}}, {{.Format}}, {{.Zoom}}% " +
+	titleFormat := "{{.App}} {{.Version}} [{{.Index}}/{{.Count}}] - {{if .Marked}}* {{end}}{{.Name}} ({{.Width}}x{{.Height}}{{if .Size}}, {{.Size}}{{end}}, {{.Format}}, {{.Zoom}}% " +
 		"{{- if .Contrast}} C:{{.Contrast}}{{end}} {{- if .Brightness}} B:{{.Brightness}}{{end}} {{- if ne .Gamma 100}} G:{{.Gamma}}{{end}} {{- if .Saturation}} S:{{.Saturation}}{{end}})"
 	titleLoading := "{{.App}} {{.Version}} [{{.Index}}/{{.Count}}] - Loading..."
 
@@ -192,6 +192,7 @@ func printKeys() {
 		{"Flip horizontal / vertical", "h / v"},
 		{"Toggle fullscreen", "f / F11 / Double-click"},
 		{"Toggle slideshow", "s"},
+		{"Mark / unmark image", "m"},
 		{"Print current image path to stdout", "Enter"},
 		{"Quit", "q / Escape"},
 	}

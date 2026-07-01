@@ -90,6 +90,9 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 *Flip (horizontal / vertical)*
 * `h` / `v`
 
+*Mark / unmark image (printed to stdout on quit)*
+* `m`
+
 *Quit*
 * `q` / `Escape`
 
@@ -109,6 +112,10 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 * Delete current image when enter is pressed
 
     `iv *.jpg | xargs rm -f`
+
+* Mark images with `m`, save the marked paths on quit
+
+    `iv *.jpg > keep.txt`
 
 * Rotate the current image when enter is pressed
 
