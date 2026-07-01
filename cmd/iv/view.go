@@ -21,6 +21,7 @@ import (
 	"github.com/anthonynsimon/bild/clone"
 	"github.com/anthonynsimon/bild/transform"
 	"github.com/fsnotify/fsnotify"
+	"golang.design/x/clipboard"
 
 	"github.com/gen2brain/iv"
 )
@@ -110,6 +111,7 @@ type view struct {
 	panButton int
 
 	marked map[string]bool
+	clip   bool
 
 	origs  []*image.RGBA
 	frames []*image.RGBA
@@ -172,6 +174,7 @@ func newView(opts options, args []info) (*view, error) {
 	v.cache = map[int]*decoded{}
 	v.inflight = map[int]bool{}
 	v.marked = map[string]bool{}
+	v.clip = clipboard.Init() == nil
 
 	vw, err := iv.New(iv.Options{
 		AppID:           "iv",
@@ -561,7 +564,7 @@ func (v *view) preloadOne(idx int) {
 	}()
 }
 
-// cycleSort re-sorts the current list in place, keeping the shown image, and drops the index-keyed cache.
+// cycleSort re-sorts the list in place and keeps the shown image.
 func (v *view) cycleSort() {
 	if len(v.args) == 0 {
 		return
@@ -983,6 +986,16 @@ func (v *view) onKeyPress(key int) {
 
 	if key == iv.KeyO {
 		v.cycleSort()
+
+		return
+	}
+
+	if key == iv.KeyC && v.modCtrl {
+		if v.modShift {
+			v.copyImage()
+		} else {
+			v.copyPath()
+		}
 
 		return
 	}

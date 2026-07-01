@@ -15,6 +15,7 @@ Small and simple image viewer.
 * **URLs:** HTTP arguments, and image scraping from HTML pages
 * **Auto-reload:** when the current image is modified or its directory changes
 * **Single instance:** open files in an already-running window
+* **Clipboard:** copy the current image, or its path, to the clipboard
 * **Self-contained:** no external runtime dependencies, single static binary \*
  
 ### Download
@@ -98,6 +99,12 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 
 *Mark / unmark image (printed to stdout on quit)*
 * `m`
+
+*Copy image path to clipboard*
+* `Ctrl+c`
+
+*Copy image to clipboard*
+* `Ctrl+Shift+c`
 
 *Quit*
 * `q` / `Escape`
