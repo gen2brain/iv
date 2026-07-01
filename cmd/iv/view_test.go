@@ -6,13 +6,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/anthonynsimon/bild/transform"
-
 	"github.com/gen2brain/iv"
 )
 
 func TestTransformZoomBounds(t *testing.T) {
-	v := &view{width: 100, height: 100, zoom: 400, fx: -1, fy: -1, filter: transform.NearestNeighbor}
+	v := &view{width: 100, height: 100, zoom: 400, fx: -1, fy: -1, filter: 0}
 
 	out := v.transform(image.NewRGBA(image.Rect(0, 0, 500, 500)))
 

@@ -190,6 +190,7 @@ func printKeys() {
 		{"Adjust saturation", "Shift+7 / Shift+8"},
 		{"Rotate clockwise / counterclockwise", "r / Shift+r"},
 		{"Flip horizontal / vertical", "h / v"},
+		{"Cycle filter (nearest / linear / bicubic)", "a"},
 		{"Toggle fullscreen", "f / F11 / Double-click"},
 		{"Toggle slideshow", "s"},
 		{"Mark / unmark image", "m"},

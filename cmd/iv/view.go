@@ -84,6 +84,7 @@ type title struct {
 	Gamma      int
 	Saturation int
 	Marked     bool
+	Filter     string
 }
 
 type view struct {
@@ -118,7 +119,7 @@ type view struct {
 	inflight map[int]bool
 	cacheGen int
 
-	filter transform.ResampleFilter
+	filter int
 
 	zoom       int
 	contrast   int
@@ -214,11 +215,9 @@ func newView(opts options, args []info) (*view, error) {
 	v.gamma = opts.Gamma
 	v.saturation = opts.Saturation
 
-	v.filter = transform.NearestNeighbor
-	if opts.Filter == 1 {
-		v.filter = transform.Linear
-	} else if opts.Filter == 2 {
-		v.filter = transform.CatmullRom
+	v.filter = opts.Filter
+	if v.filter < 0 || v.filter > 2 {
+		v.filter = 0
 	}
 
 	v.width, v.height = opts.Width, opts.Height
@@ -947,6 +946,13 @@ func (v *view) onKeyPress(key int) {
 		return
 	}
 
+	if key == iv.KeyA {
+		v.filter = (v.filter + 1) % 3
+		v.rebuild()
+
+		return
+	}
+
 	v.handleIndex(key)
 }
 
@@ -1069,7 +1075,7 @@ func (v *view) transform(img *image.RGBA) *image.RGBA {
 	v.srcBounds = img.Bounds()
 
 	if v.zoom == 0 {
-		img = fit(img, v.width, v.height, v.filter)
+		img = fit(img, v.width, v.height, v.resampleFilter())
 		v.bounds = img.Bounds()
 
 		return img
@@ -1116,7 +1122,7 @@ func (v *view) transform(img *image.RGBA) *image.RGBA {
 
 	region := transform.Crop(img, image.Rect(x0, y0, x1, y1))
 
-	return resize(region, cw, ch, v.filter)
+	return resize(region, cw, ch, v.resampleFilter())
 }
 
 func (v *view) zoomAt(key, cx, cy int) {
@@ -1409,7 +1415,7 @@ func (v *view) formatTitle(loading bool) string {
 
 	t := title{appName, appVersion, v.idx + 1, len(v.args), a.Name,
 		a.Base, a.Width, a.Height, size,
-		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation, v.marked[a.Name]}
+		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation, v.marked[a.Name], v.filterName()}
 
 	if loading {
 		var b bytes.Buffer
@@ -1422,6 +1428,28 @@ func (v *view) formatTitle(loading bool) string {
 	}
 
 	return out
+}
+
+func (v *view) resampleFilter() transform.ResampleFilter {
+	switch v.filter {
+	case 1:
+		return transform.Linear
+	case 2:
+		return transform.CatmullRom
+	default:
+		return transform.NearestNeighbor
+	}
+}
+
+func (v *view) filterName() string {
+	switch v.filter {
+	case 1:
+		return "Linear"
+	case 2:
+		return "Bicubic"
+	default:
+		return "Nearest"
+	}
 }
 
 func (v *view) zoomPercent() int {
