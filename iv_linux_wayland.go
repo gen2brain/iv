@@ -263,9 +263,8 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 			return fmt.Errorf("invalid argument: %v", args[0])
 		}
 		if title != "" {
-			if err := v.SetTitle(title); err != nil {
-				return err
-			}
+			v.title = title
+			v.toplevel.SetTitle(title)
 		}
 	}
 
@@ -802,6 +801,11 @@ func (v *viewWayland) Raise() error {
 func (v *viewWayland) SetTitle(title string) error {
 	v.title = title
 	v.toplevel.SetTitle(title)
+
+	// Client-side titles are drawn into the buffer, so repaint to show the change now.
+	if v.csd && v.configured && v.image != nil {
+		return v.render()
+	}
 
 	return nil
 }
