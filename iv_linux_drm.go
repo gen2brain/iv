@@ -11,8 +11,10 @@ import (
 	"os"
 	"slices"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/NeowayLabs/drm"
+	"github.com/NeowayLabs/drm/ioctl"
 	"github.com/NeowayLabs/drm/mode"
 	"github.com/holoplot/go-evdev"
 	"github.com/pbnjay/pixfont"
@@ -45,12 +47,38 @@ type viewDRM struct {
 	mouseX int
 	mouseY int
 
+	hasCursor    bool
+	cursorHandle uint32
+	cursorData   []byte
+	cursorStride int
+	cursorW      int
+	cursorH      int
+
 	bg        color.RGBA
 	title     string
 	textColor color.RGBA
+	last      *image.RGBA
 
 	connected atomic.Bool
 }
+
+const (
+	drmCursorBO   = 0x01
+	drmCursorMove = 0x02
+	cursorSize    = 64
+)
+
+type drmModeCursor struct {
+	flags  uint32
+	crtcID uint32
+	x      int32
+	y      int32
+	width  uint32
+	height uint32
+	handle uint32
+}
+
+var ioctlModeCursor = ioctl.NewCode(ioctl.Write|ioctl.Read, uint16(unsafe.Sizeof(drmModeCursor{})), drm.IOCTLBase, 0xA3)
 
 func newDRM(opts Options) (*viewDRM, error) {
 	v := &viewDRM{}
@@ -80,6 +108,8 @@ func newDRM(opts Options) (*viewDRM, error) {
 	w, h := v.ScreenSize()
 	v.mouseX = w / 2
 	v.mouseY = h / 2
+
+	v.cursorInit()
 
 	v.events = make(chan *evdev.InputEvent)
 
@@ -148,6 +178,7 @@ func (v *viewDRM) Display(ctx context.Context, img image.Image, args ...any) err
 	}
 
 	src := imageToRGBA(img)
+	v.last = src
 	for j := range v.msets {
 		v.render(&v.msets[j], src)
 	}
@@ -176,6 +207,12 @@ func (v *viewDRM) Display(ctx context.Context, img image.Image, args ...any) err
 					} else if ev.Code == evdev.REL_Y {
 						v.mouseY += int(ev.Value)
 					}
+
+					sw, sh := v.ScreenSize()
+					v.mouseX = min(max(v.mouseX, 0), sw-1)
+					v.mouseY = min(max(v.mouseY, 0), sh-1)
+
+					v.cursorMove()
 
 					if v.motionHandler != nil {
 						v.motionHandler(v.mouseX, v.mouseY)
@@ -233,7 +270,121 @@ func (v *viewDRM) Maximize() error {
 	return nil
 }
 
-func (v *viewDRM) SetCursor(Cursor) error {
+// cursorInit allocates a hardware cursor on the KMS cursor plane, if the driver provides one.
+func (v *viewDRM) cursorInit() {
+	cw, err := drm.GetCap(v.dev, drm.CapCursorWidth)
+	if err != nil || cw == 0 {
+		return
+	}
+	ch, err := drm.GetCap(v.dev, drm.CapCursorHeight)
+	if err != nil || ch == 0 {
+		return
+	}
+
+	w, h := min(cursorSize, int(cw)), min(cursorSize, int(ch))
+
+	fb, err := mode.CreateFB(v.dev, uint16(w), uint16(h), 32)
+	if err != nil {
+		return
+	}
+
+	offset, err := mode.MapDumb(v.dev, fb.Handle)
+	if err != nil {
+		_ = mode.DestroyDumb(v.dev, fb.Handle)
+		return
+	}
+
+	data, err := unix.Mmap(int(v.dev.Fd()), int64(offset), int(fb.Size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		_ = mode.DestroyDumb(v.dev, fb.Handle)
+		return
+	}
+
+	v.cursorHandle = fb.Handle
+	v.cursorData = data
+	v.cursorStride = int(fb.Pitch)
+	v.cursorW, v.cursorH = w, h
+	v.hasCursor = true
+
+	v.drawCursor(CursorDefault)
+	for j := range v.msets {
+		v.cursorIoctl(v.msets[j].mode.Crtc, drmCursorBO, 0, 0)
+	}
+	v.cursorMove()
+}
+
+func (v *viewDRM) cursorIoctl(crtc uint32, flags uint32, x, y int) {
+	c := drmModeCursor{flags: flags, crtcID: crtc, x: int32(x), y: int32(y),
+		width: uint32(v.cursorW), height: uint32(v.cursorH), handle: v.cursorHandle}
+
+	_ = ioctl.Do(v.dev.Fd(), uintptr(ioctlModeCursor), uintptr(unsafe.Pointer(&c)))
+}
+
+func (v *viewDRM) cursorMove() {
+	if !v.hasCursor {
+		return
+	}
+
+	sw, sh := v.ScreenSize()
+	x := min(max(v.mouseX, 0), sw-1)
+	y := min(max(v.mouseY, 0), sh-1)
+
+	for j := range v.msets {
+		v.cursorIoctl(v.msets[j].mode.Crtc, drmCursorMove, x, y)
+	}
+}
+
+// drawCursor renders the cursor bitmap into the mapped buffer as ARGB8888 (BGRA byte order).
+func (v *viewDRM) drawCursor(c Cursor) {
+	for i := range v.cursorData {
+		v.cursorData[i] = 0
+	}
+
+	art := cursorArrow
+	if c == CursorGrabbing {
+		art = cursorFleur
+	}
+
+	for y, row := range art {
+		if y >= v.cursorH {
+			break
+		}
+		for x, ch := range row {
+			if x >= v.cursorW {
+				break
+			}
+
+			var px color.RGBA
+			switch ch {
+			case 'o':
+				px = color.RGBA{A: 0xff}
+			case '#':
+				px = color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+			default:
+				continue
+			}
+
+			o := y*v.cursorStride + x*4
+			v.cursorData[o+0] = px.R
+			v.cursorData[o+1] = px.G
+			v.cursorData[o+2] = px.B
+			v.cursorData[o+3] = px.A
+		}
+	}
+
+	_ = swizzle.BGRA(v.cursorData)
+}
+
+func (v *viewDRM) SetCursor(c Cursor) error {
+	if !v.hasCursor {
+		return nil
+	}
+
+	v.drawCursor(c)
+	for j := range v.msets {
+		v.cursorIoctl(v.msets[j].mode.Crtc, drmCursorBO, 0, 0)
+	}
+
 	return nil
 }
 
@@ -243,6 +394,13 @@ func (v *viewDRM) Raise() error {
 
 func (v *viewDRM) SetTitle(title string) error {
 	v.title = title
+
+	// The title is drawn into the framebuffer, so repaint to reflect it immediately.
+	if v.last != nil {
+		for j := range v.msets {
+			v.render(&v.msets[j], v.last)
+		}
+	}
 
 	return nil
 }
@@ -350,6 +508,19 @@ func (v *viewDRM) Close() error {
 		if err := unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETSF, &v.termios); err != nil {
 			e = errors.Join(e, err)
 		}
+	}
+
+	if v.hasCursor {
+		handle := v.cursorHandle
+		v.cursorHandle = 0 // handle 0 disables the cursor plane
+
+		for j := range v.msets {
+			v.cursorIoctl(v.msets[j].mode.Crtc, drmCursorBO, 0, 0)
+		}
+
+		_ = unix.Munmap(v.cursorData)
+		_ = mode.DestroyDumb(v.dev, handle)
+		v.hasCursor = false
 	}
 
 	if err := v.fbCleanup(); err != nil {
@@ -740,4 +911,44 @@ var buttonMapDRM = map[int]int{
 	evdev.BTN_LEFT:   ButtonLeft,
 	evdev.BTN_MIDDLE: ButtonMiddle,
 	evdev.BTN_RIGHT:  ButtonRight,
+}
+
+// Cursor bitmaps: o = black outline, # = white fill, space = transparent.
+var cursorArrow = []string{
+	"o",
+	"oo",
+	"o#o",
+	"o##o",
+	"o###o",
+	"o####o",
+	"o#####o",
+	"o######o",
+	"o#######o",
+	"o########o",
+	"o#####oooo",
+	"o##o##o",
+	"o#o o##o",
+	"oo  o##o",
+	"o    o##o",
+	"      oo",
+}
+
+var cursorFleur = []string{
+	"        o",
+	"       o#o",
+	"      o###o",
+	"       o#o",
+	"       o#o",
+	"       o#o",
+	"  o    o#o    o",
+	" o#oooo###oooo#o",
+	"o###############o",
+	" o#oooo###oooo#o",
+	"  o    o#o    o",
+	"       o#o",
+	"       o#o",
+	"       o#o",
+	"      o###o",
+	"       o#o",
+	"        o",
 }
