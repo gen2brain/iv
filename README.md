@@ -93,6 +93,9 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 *Cycle scaling filter (nearest / linear / bicubic)*
 * `a`
 
+*Cycle sort order (none / name / time / size / shuffle)*
+* `o`
+
 *Mark / unmark image (printed to stdout on quit)*
 * `m`
 

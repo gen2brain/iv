@@ -191,6 +191,7 @@ func printKeys() {
 		{"Rotate clockwise / counterclockwise", "r / Shift+r"},
 		{"Flip horizontal / vertical", "h / v"},
 		{"Cycle filter (nearest / linear / bicubic)", "a"},
+		{"Cycle sort (none / name / time / size / shuffle)", "o"},
 		{"Toggle fullscreen", "f / F11 / Double-click"},
 		{"Toggle slideshow", "s"},
 		{"Mark / unmark image", "m"},

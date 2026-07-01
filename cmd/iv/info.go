@@ -207,6 +207,12 @@ func infos(a []string, sortBy int) []info {
 
 	wg.Wait()
 
+	sortInfos(out, sortBy)
+
+	return out
+}
+
+func sortInfos(out []info, sortBy int) {
 	switch sortBy {
 	case 0:
 		sort.Sort(byId(out))
@@ -219,8 +225,6 @@ func infos(a []string, sortBy int) []info {
 	case 4:
 		rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	}
-
-	return out
 }
 
 func humanize(s int64) string {

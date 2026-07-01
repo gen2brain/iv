@@ -85,6 +85,7 @@ type title struct {
 	Saturation int
 	Marked     bool
 	Filter     string
+	Sort       string
 }
 
 type view struct {
@@ -560,6 +561,33 @@ func (v *view) preloadOne(idx int) {
 	}()
 }
 
+// cycleSort re-sorts the current list in place, keeping the shown image, and drops the index-keyed cache.
+func (v *view) cycleSort() {
+	if len(v.args) == 0 {
+		return
+	}
+
+	v.opts.Sort = (v.opts.Sort + 1) % 5
+
+	cur := v.args[v.idx].Name
+	sortInfos(v.args, v.opts.Sort)
+
+	v.idx = 0
+	for i := range v.args {
+		if v.args[i].Name == cur {
+			v.idx = i
+			break
+		}
+	}
+
+	v.cacheClear()
+	v.preload()
+
+	if v.opts.Title {
+		_ = v.view.SetTitle(v.formatTitle(false))
+	}
+}
+
 // cacheClear drops all preloaded images; called when the argument list changes under the indexes.
 func (v *view) cacheClear() {
 	v.mu.Lock()
@@ -949,6 +977,12 @@ func (v *view) onKeyPress(key int) {
 	if key == iv.KeyA {
 		v.filter = (v.filter + 1) % 3
 		v.rebuild()
+
+		return
+	}
+
+	if key == iv.KeyO {
+		v.cycleSort()
 
 		return
 	}
@@ -1415,7 +1449,7 @@ func (v *view) formatTitle(loading bool) string {
 
 	t := title{appName, appVersion, v.idx + 1, len(v.args), a.Name,
 		a.Base, a.Width, a.Height, size,
-		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation, v.marked[a.Name], v.filterName()}
+		a.Format, v.zoomPercent(), v.contrast, v.brightness, v.gamma, v.saturation, v.marked[a.Name], v.filterName(), v.sortName()}
 
 	if loading {
 		var b bytes.Buffer
@@ -1449,6 +1483,21 @@ func (v *view) filterName() string {
 		return "Bicubic"
 	default:
 		return "Nearest"
+	}
+}
+
+func (v *view) sortName() string {
+	switch v.opts.Sort {
+	case 1:
+		return "Name"
+	case 2:
+		return "Time"
+	case 3:
+		return "Size"
+	case 4:
+		return "Shuffle"
+	default:
+		return "None"
 	}
 }
 
