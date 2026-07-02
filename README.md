@@ -100,6 +100,9 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 *Mark / unmark image (printed to stdout on quit)*
 * `m`
 
+*Toggle EXIF overlay*
+* `i`
+
 *Copy image path to clipboard*
 * `Ctrl+c`
 

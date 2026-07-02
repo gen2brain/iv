@@ -195,6 +195,7 @@ func printKeys() {
 		{"Toggle fullscreen", "f / F11 / Double-click"},
 		{"Toggle slideshow", "s"},
 		{"Mark / unmark image", "m"},
+		{"Toggle EXIF overlay", "i"},
 		{"Copy image path to clipboard", "Ctrl+c"},
 		{"Copy image to clipboard", "Ctrl+Shift+c"},
 		{"Print current image path to stdout", "Enter"},

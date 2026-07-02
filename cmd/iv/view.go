@@ -113,6 +113,9 @@ type view struct {
 	marked map[string]bool
 	clip   bool
 
+	showInfo  bool
+	infoCache map[string][]string
+
 	origs  []*image.RGBA
 	frames []*image.RGBA
 	delays []time.Duration
@@ -174,6 +177,7 @@ func newView(opts options, args []info) (*view, error) {
 	v.cache = map[int]*decoded{}
 	v.inflight = map[int]bool{}
 	v.marked = map[string]bool{}
+	v.infoCache = map[string][]string{}
 	v.clip = clipboard.Init() == nil
 
 	vw, err := iv.New(iv.Options{
@@ -607,6 +611,7 @@ func (v *view) buildFrames() {
 		img := v.orient(o)
 		img = v.transform(img)
 		img = v.adjust(img)
+		img = v.drawOverlay(img)
 		v.frames = append(v.frames, img)
 	}
 }
@@ -986,6 +991,12 @@ func (v *view) onKeyPress(key int) {
 
 	if key == iv.KeyO {
 		v.cycleSort()
+
+		return
+	}
+
+	if key == iv.KeyI {
+		v.toggleInfo()
 
 		return
 	}
