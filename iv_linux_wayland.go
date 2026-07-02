@@ -4,6 +4,7 @@ package iv
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
@@ -89,10 +90,15 @@ type viewWayland struct {
 	configured  bool
 	running     bool
 	fullscreen  bool
+	maximized   bool
 	beat        bool
 	closed      bool
 	closedFired bool
 	axisAccum   int32
+
+	ptrX, ptrY int
+	hoverBtn   int
+	overBar    bool
 
 	repeatKey   int
 	repeatRate  int32
@@ -116,6 +122,7 @@ func newWayland(opts Options) (*viewWayland, error) {
 	v := &viewWayland{}
 	v.winWidth = opts.Width
 	v.winHeight = opts.Height
+	v.hoverBtn = -1
 	v.repeatRate = 25
 	v.repeatDelay = 500
 	v.cursorShape = wp.CursorShapeDeviceV1ShapeDefault
@@ -356,8 +363,8 @@ func (v *viewWayland) render() error {
 
 	v.fill(b.data)
 	v.blit(b.data, w)
-	if v.csd && !v.fullscreen && v.title != "" {
-		v.drawTitle(b.data, w)
+	if v.hasTitleBar() {
+		v.drawWindowBar(b.data, w)
 	}
 
 	b.busy = true
@@ -388,13 +395,14 @@ func (v *viewWayland) blit(data []byte, w int) {
 	b := v.image.Bounds()
 	iw, ih := b.Dx(), b.Dy()
 
+	top := v.contentTop()
 	dx := (w - iw) / 2
-	dy := (v.winHeight - ih) / 2
+	dy := top + (v.contentHeight()-ih)/2
 	if dx < 0 {
 		dx = 0
 	}
-	if dy < 0 {
-		dy = 0
+	if dy < top {
+		dy = top
 	}
 
 	cols, rows := iw, ih
@@ -422,14 +430,12 @@ func (v *viewWayland) setCSD(csd bool) {
 		return
 	}
 	v.csd = csd
+	if v.configured && v.resizeHandler != nil {
+		v.resizeHandler(v.winWidth, v.contentHeight())
+	}
 	if v.image != nil {
 		_ = v.render()
 	}
-}
-
-func (v *viewWayland) drawTitle(data []byte, w int) {
-	c := &wlCanvas{data: data, stride: w * 4, w: w, h: v.winHeight, useXBGR: v.useXBGR}
-	drawTitleBar(c, v.title, v.textColor)
 }
 
 func (c *wlCanvas) Set(x, y int, clr color.Color) {
@@ -529,11 +535,18 @@ func (v *viewWayland) acquire() *shmBuf {
 	return nil
 }
 
-func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height int32, _ []byte) error {
+func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height int32, states []byte) error {
 	if !v.configured {
 		v.configured = true
 		if v.createdHandler != nil {
 			v.createdHandler()
+		}
+	}
+
+	v.maximized = false
+	for i := 0; i+4 <= len(states); i += 4 {
+		if binary.NativeEndian.Uint32(states[i:i+4]) == xdgStateMaximized {
+			v.maximized = true
 		}
 	}
 
@@ -545,7 +558,7 @@ func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height i
 		v.winWidth = int(width)
 		v.winHeight = int(height)
 		if v.resizeHandler != nil {
-			v.resizeHandler(v.winWidth, v.winHeight)
+			v.resizeHandler(v.winWidth, v.contentHeight())
 		}
 	}
 
@@ -553,13 +566,7 @@ func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height i
 }
 
 func (v *viewWayland) onToplevelClose(_ any, _ xdg.Toplevel) error {
-	v.running = false
-	v.closed = true
-	if v.closedHandler != nil && !v.closedFired {
-		v.closedFired = true
-		v.closedHandler()
-	}
-
+	v.fireClose()
 	return nil
 }
 
@@ -651,7 +658,14 @@ func repeatExempt(key int) bool {
 	return false
 }
 
-func (v *viewWayland) onButton(_ any, _ wl.Pointer, _, _, button uint32, state wl.PointerButtonState) error {
+func (v *viewWayland) onButton(_ any, _ wl.Pointer, serial, _, button uint32, state wl.PointerButtonState) error {
+	if v.hasTitleBar() && button == btnLeft && v.ptrY < titleBarHeight {
+		if state == wl.PointerButtonStatePressed {
+			v.pressTitleBar(serial)
+		}
+		return nil
+	}
+
 	val, ok := buttonMapWayland[int(button)]
 	if !ok {
 		return nil
@@ -705,8 +719,26 @@ func (v *viewWayland) onPointerFrame(_ any, _ wl.Pointer) error {
 }
 
 func (v *viewWayland) onMotion(_ any, _ wl.Pointer, _ uint32, x, y float64) error {
+	v.ptrX, v.ptrY = int(x), int(y)
+
+	if v.hasTitleBar() {
+		overBar := v.ptrY < titleBarHeight
+		if overBar && !v.overBar && v.hasCursor {
+			v.cursor.SetShape(v.enterSerial, wp.CursorShapeDeviceV1ShapeDefault)
+		}
+		v.overBar = overBar
+
+		if hb := v.titleBarButtonAt(v.ptrX, v.ptrY); hb != v.hoverBtn {
+			v.hoverBtn = hb
+			_ = v.render()
+		}
+		if overBar {
+			return nil
+		}
+	}
+
 	if v.motionHandler != nil {
-		v.motionHandler(int(x), int(y))
+		v.motionHandler(v.ptrX, v.ptrY-v.contentTop())
 	}
 
 	return nil
@@ -755,6 +787,14 @@ func (v *viewWayland) SetCursor(c Cursor) error {
 }
 
 func (v *viewWayland) onLeave(_ any, _ wl.Pointer, _ uint32, _ wl.Surface) error {
+	v.overBar = false
+	if v.hoverBtn != -1 {
+		v.hoverBtn = -1
+		if v.image != nil {
+			_ = v.render()
+		}
+	}
+
 	if v.leaveHandler != nil {
 		v.leaveHandler()
 	}
@@ -883,7 +923,7 @@ func (v *viewWayland) ScreenSize() (int, int) {
 }
 
 func (v *viewWayland) WindowSize() (int, int) {
-	return v.winWidth, v.winHeight
+	return v.winWidth, v.contentHeight()
 }
 
 func (v *viewWayland) Close() error {

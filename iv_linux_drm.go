@@ -413,7 +413,7 @@ func (v *viewDRM) render(ms *mset, src *image.RGBA) {
 
 	if v.title != "" {
 		c := &wlCanvas{data: ms.back, stride: w * 4, w: w, h: h}
-		drawTitleBar(c, v.title, v.textColor)
+		drawTitleOverlay(c, v.title, v.textColor)
 	}
 
 	v.present(ms, w, h)

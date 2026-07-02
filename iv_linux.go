@@ -200,8 +200,8 @@ const titleMargin = 10
 // titleFontHeight is the height of the 8x8 pixfont used for the drawn title.
 const titleFontHeight = 8
 
-// drawTitleBar draws title onto c with a dimmed background box so it stays legible over any image.
-func drawTitleBar(c *wlCanvas, title string, textColor color.Color) {
+// drawTitleOverlay draws title onto c with a dimmed background box so it stays legible over any image.
+func drawTitleOverlay(c *wlCanvas, title string, textColor color.Color) {
 	elided := elideTitle(title, c.w-2*titleMargin)
 	if elided == "" {
 		return
