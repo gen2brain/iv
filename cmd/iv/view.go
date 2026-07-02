@@ -218,6 +218,7 @@ func newView(opts options, args []info) (*view, error) {
 	vw.SetButtonReleaseHandler(v.onButtonRelease)
 
 	v.zoom = opts.Zoom
+	v.fx, v.fy = -1, -1
 	v.contrast = opts.Contrast
 	v.brightness = opts.Brightness
 	v.gamma = opts.Gamma
@@ -447,7 +448,6 @@ func (v *view) decodeCurrent() error {
 	v.rotation = 0
 	v.flipH = false
 	v.flipV = false
-	v.fx, v.fy = -1, -1
 
 	runtime.GC()
 
