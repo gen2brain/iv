@@ -17,7 +17,6 @@ import (
 	"github.com/NeowayLabs/drm/ioctl"
 	"github.com/NeowayLabs/drm/mode"
 	"github.com/holoplot/go-evdev"
-	"github.com/pbnjay/pixfont"
 	"golang.org/x/sys/unix"
 
 	"github.com/gen2brain/iv/internal/swizzle"
@@ -414,7 +413,7 @@ func (v *viewDRM) render(ms *mset, src *image.RGBA) {
 
 	if v.title != "" {
 		c := &wlCanvas{data: ms.back, stride: w * 4, w: w, h: h}
-		pixfont.DrawString(c, titleMargin, titleMargin, elideTitle(v.title, w-2*titleMargin), v.textColor)
+		drawTitleBar(c, v.title, v.textColor)
 	}
 
 	v.present(ms, w, h)

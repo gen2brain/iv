@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"os"
 	"strings"
 
@@ -195,6 +196,49 @@ func (v *View) Raise() error {
 }
 
 const titleMargin = 10
+
+// titleFontHeight is the height of the 8x8 pixfont used for the drawn title.
+const titleFontHeight = 8
+
+// drawTitleBar draws title onto c with a dimmed background box so it stays legible over any image.
+func drawTitleBar(c *wlCanvas, title string, textColor color.Color) {
+	elided := elideTitle(title, c.w-2*titleMargin)
+	if elided == "" {
+		return
+	}
+
+	const pad = 3
+	tw := pixfont.MeasureString(elided)
+
+	dimRect(c, titleMargin-pad, titleMargin-pad, titleMargin+tw+pad, titleMargin+titleFontHeight+pad)
+	pixfont.DrawString(c, titleMargin, titleMargin, elided, textColor)
+}
+
+// dimRect darkens the color channels of the rectangle on the canvas buffer, leaving alpha.
+func dimRect(c *wlCanvas, x0, y0, x1, y1 int) {
+	if x0 < 0 {
+		x0 = 0
+	}
+	if y0 < 0 {
+		y0 = 0
+	}
+	if x1 > c.w {
+		x1 = c.w
+	}
+	if y1 > c.h {
+		y1 = c.h
+	}
+
+	for y := y0; y < y1; y++ {
+		row := y * c.stride
+		for x := x0; x < x1; x++ {
+			o := row + x*4
+			c.data[o] /= 3
+			c.data[o+1] /= 3
+			c.data[o+2] /= 3
+		}
+	}
+}
 
 func elideTitle(title string, maxWidth int) string {
 	if maxWidth <= 0 {

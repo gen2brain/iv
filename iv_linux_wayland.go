@@ -13,7 +13,6 @@ import (
 	"codeberg.org/tesselslate/wl-protocols/wp"
 	"codeberg.org/tesselslate/wl-protocols/xdg"
 	"codeberg.org/tesselslate/wl-protocols/zxdg"
-	"github.com/pbnjay/pixfont"
 	"golang.org/x/sys/unix"
 
 	"github.com/gen2brain/iv/internal/swizzle"
@@ -430,7 +429,7 @@ func (v *viewWayland) setCSD(csd bool) {
 
 func (v *viewWayland) drawTitle(data []byte, w int) {
 	c := &wlCanvas{data: data, stride: w * 4, w: w, h: v.winHeight, useXBGR: v.useXBGR}
-	pixfont.DrawString(c, titleMargin, titleMargin, elideTitle(v.title, w-2*titleMargin), v.textColor)
+	drawTitleBar(c, v.title, v.textColor)
 }
 
 func (c *wlCanvas) Set(x, y int, clr color.Color) {
