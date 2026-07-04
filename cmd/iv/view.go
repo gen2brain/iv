@@ -115,6 +115,7 @@ type view struct {
 
 	showInfo  bool
 	infoCache map[string][]string
+	scratch   *image.RGBA
 
 	origs  []*image.RGBA
 	frames []*image.RGBA
@@ -293,7 +294,7 @@ func (v *view) run() error {
 					fr = 0
 				}
 
-				if err := v.view.Display(v.ctx, v.frames[fr], "", true); err != nil {
+				if err := v.view.Display(v.ctx, v.overlayed(v.frames[fr]), "", true); err != nil {
 					return err
 				}
 
@@ -357,7 +358,7 @@ func (v *view) run() error {
 
 		v.handleContext()
 
-		if err := v.view.Display(v.ctx, v.frames[v.frame], t, true); err != nil {
+		if err := v.view.Display(v.ctx, v.overlayed(v.frames[v.frame]), t, true); err != nil {
 			return err
 		}
 
@@ -611,7 +612,6 @@ func (v *view) buildFrames() {
 		img := v.orient(o)
 		img = v.transform(img)
 		img = v.adjust(img)
-		img = v.drawOverlay(img)
 		v.frames = append(v.frames, img)
 	}
 }

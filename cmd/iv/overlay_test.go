@@ -24,30 +24,38 @@ func solid(w, h int, val byte) *image.RGBA {
 	return img
 }
 
-func TestDrawOverlay(t *testing.T) {
+func TestOverlayed(t *testing.T) {
 	v := &view{showInfo: true, infoCache: map[string][]string{}}
 	v.args = []info{{Name: "cam.jpg"}}
 	v.infoCache["cam.jpg"] = []string{"TestCam Model123", "f/5.6", "ISO 800"}
 
+	px := image.Pt(overlayMargin+1, 200-overlayMargin-1)
+
 	img := solid(400, 200, 200)
-	v.drawOverlay(img)
-	if img.RGBAAt(overlayMargin+1, img.Bounds().Max.Y-overlayMargin-1).R == 200 {
-		t.Error("overlay did not draw (bottom-left background unchanged)")
+	out := v.overlayed(img)
+	if out.RGBAAt(px.X, px.Y).R == 200 {
+		t.Error("overlay did not draw on the returned image")
+	}
+	if img.RGBAAt(px.X, px.Y).R != 200 {
+		t.Error("overlayed mutated its input buffer (cached original corrupted)")
 	}
 
-	// disabled, image unchanged
+	// disabled, image returned unchanged
 	v.showInfo = false
 	clean := solid(400, 200, 200)
-	if v.drawOverlay(clean) != clean {
-		t.Error("drawOverlay changed image while disabled")
+	if v.overlayed(clean) != clean {
+		t.Error("overlayed changed image while disabled")
 	}
 
 	// no EXIF, placeholder still draws so the toggle stays visible
 	w2 := &view{showInfo: true, infoCache: map[string][]string{}}
 	w2.args = []info{{Name: "/no/such/plain.png", Format: "PNG"}}
 	none := solid(400, 200, 200)
-	w2.drawOverlay(none)
-	if none.RGBAAt(overlayMargin+1, none.Bounds().Max.Y-overlayMargin-1).R == 200 {
+	out2 := w2.overlayed(none)
+	if out2.RGBAAt(px.X, px.Y).R == 200 {
 		t.Error("no-EXIF placeholder overlay did not draw")
+	}
+	if none.RGBAAt(px.X, px.Y).R != 200 {
+		t.Error("no-EXIF overlayed mutated its input buffer")
 	}
 }

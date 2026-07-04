@@ -546,7 +546,8 @@ func (v *viewWayland) acquire() *shmBuf {
 }
 
 func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height int32, states []byte) error {
-	if !v.configured {
+	first := !v.configured
+	if first {
 		v.configured = true
 		if v.createdHandler != nil {
 			v.createdHandler()
@@ -560,16 +561,15 @@ func (v *viewWayland) onToplevelConfigure(_ any, _ xdg.Toplevel, width, height i
 		}
 	}
 
-	if width == 0 || height == 0 {
-		return nil
-	}
-
-	if int(width) != v.winWidth || int(height) != v.winHeight {
+	changed := false
+	if width != 0 && height != 0 && (int(width) != v.winWidth || int(height) != v.winHeight) {
 		v.winWidth = int(width)
 		v.winHeight = int(height)
-		if v.resizeHandler != nil {
-			v.resizeHandler(v.winWidth, v.contentHeight())
-		}
+		changed = true
+	}
+
+	if (first || changed) && v.resizeHandler != nil {
+		v.resizeHandler(v.winWidth, v.contentHeight())
 	}
 
 	return nil

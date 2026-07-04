@@ -31,8 +31,8 @@ func (v *view) toggleInfo() {
 	v.rebuild()
 }
 
-// drawOverlay draws the metadata overlay onto img when the info overlay is enabled.
-func (v *view) drawOverlay(img *image.RGBA) *image.RGBA {
+// overlayed returns img with the metadata overlay drawn into a reused scratch buffer, or img unchanged when disabled.
+func (v *view) overlayed(img *image.RGBA) *image.RGBA {
 	if !v.showInfo || len(v.args) == 0 {
 		return img
 	}
@@ -42,6 +42,13 @@ func (v *view) drawOverlay(img *image.RGBA) *image.RGBA {
 		return img
 	}
 
+	b := img.Bounds()
+	if v.scratch == nil || v.scratch.Bounds() != b {
+		v.scratch = image.NewRGBA(b)
+	}
+	copy(v.scratch.Pix, img.Pix)
+	out := v.scratch
+
 	width := 0
 	for _, s := range lines {
 		if w := pixfont.MeasureString(s); w > width {
@@ -49,7 +56,6 @@ func (v *view) drawOverlay(img *image.RGBA) *image.RGBA {
 		}
 	}
 
-	b := img.Bounds()
 	boxW := width + 2*overlayPad
 	boxH := len(lines)*overlayLineH + 2*overlayPad
 
@@ -61,16 +67,16 @@ func (v *view) drawOverlay(img *image.RGBA) *image.RGBA {
 
 	for y := y0; y < y0+boxH && y < b.Max.Y; y++ {
 		for x := x0; x < x0+boxW && x < b.Max.X; x++ {
-			dim(img, x, y)
+			dim(out, x, y)
 		}
 	}
 
 	white := color.RGBA{0xff, 0xff, 0xff, 0xff}
 	for i, s := range lines {
-		pixfont.DrawString(img, x0+overlayPad, y0+overlayPad+i*overlayLineH, s, white)
+		pixfont.DrawString(out, x0+overlayPad, y0+overlayPad+i*overlayLineH, s, white)
 	}
 
-	return img
+	return out
 }
 
 // dim darkens the pixel at x,y so overlay text stays legible over any image.

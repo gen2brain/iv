@@ -6,4 +6,4 @@ import "image"
 
 func (v *view) toggleInfo() {}
 
-func (v *view) drawOverlay(img *image.RGBA) *image.RGBA { return img }
+func (v *view) overlayed(img *image.RGBA) *image.RGBA { return img }
