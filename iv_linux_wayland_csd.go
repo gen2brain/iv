@@ -3,6 +3,7 @@
 package iv
 
 import (
+	"image"
 	"image/color"
 
 	"github.com/pbnjay/pixfont"
@@ -11,6 +12,7 @@ import (
 const (
 	titleBarHeight = 30
 	titleBtnWidth  = 44
+	titleIconSize  = 20
 
 	xdgStateMaximized = 1
 )
@@ -57,12 +59,19 @@ func (v *viewWayland) drawWindowBar(data []byte, w int) {
 
 	btnStart := w - 3*titleBtnWidth
 
+	left := titleMargin
+	if v.barIcon != nil {
+		ib := v.barIcon.Bounds()
+		drawIcon(c, v.barIcon, titleMargin, (titleBarHeight-ib.Dy())/2)
+		left = titleMargin + ib.Dx() + titleMargin
+	}
+
 	if v.title != "" {
-		title := elideTitle(v.title, btnStart-2*titleMargin)
+		title := elideTitle(v.title, btnStart-left-titleMargin)
 		tw := pixfont.MeasureString(title)
 		tx := (btnStart - tw) / 2
-		if tx < titleMargin {
-			tx = titleMargin
+		if tx < left {
+			tx = left
 		}
 		pixfont.DrawString(c, tx, (titleBarHeight-titleFontHeight)/2, title, v.textColor)
 	}
@@ -138,6 +147,35 @@ func (v *viewWayland) pressTitleBar(serial uint32) {
 	default:
 		v.toplevel.Move(v.seat, serial)
 	}
+}
+
+// drawIcon composites the premultiplied icon over the bar background at x0,y0.
+func drawIcon(c *wlCanvas, img *image.RGBA, x0, y0 int) {
+	b := img.Bounds()
+	for y := 0; y < b.Dy(); y++ {
+		so := y * img.Stride
+		for x := 0; x < b.Dx(); x++ {
+			o := so + x*4
+			a := img.Pix[o+3]
+			if a == 0 {
+				continue
+			}
+			r := blendOver(img.Pix[o+0], barColor.R, a)
+			g := blendOver(img.Pix[o+1], barColor.G, a)
+			bl := blendOver(img.Pix[o+2], barColor.B, a)
+			c.Set(x0+x, y0+y, color.RGBA{r, g, bl, 0xff})
+		}
+	}
+}
+
+// blendOver composites a premultiplied source channel over an opaque background.
+func blendOver(src, bg, a uint8) uint8 {
+	v := int(src) + int(bg)*(255-int(a))/255
+	if v > 255 {
+		v = 255
+	}
+
+	return uint8(v)
 }
 
 func fillRect(c *wlCanvas, x0, y0, x1, y1 int, clr color.Color) {

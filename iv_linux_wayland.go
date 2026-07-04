@@ -55,6 +55,7 @@ type viewWayland struct {
 	iconBuf     wl.Buffer
 	iconFd      int
 	iconData    []byte
+	barIcon     *image.RGBA
 
 	keyboard wl.Keyboard
 	pointer  wl.Pointer
@@ -857,13 +858,19 @@ func (v *viewWayland) SetTitle(title string) error {
 }
 
 func (v *viewWayland) SetIcon(img image.Image) error {
+	src := imageToRGBA(img)
+
+	v.barIcon = scaleIconDown(src, titleIconSize)
+	if v.csd && v.configured && v.image != nil {
+		_ = v.render()
+	}
+
 	if !v.hasIconMgr {
 		return nil
 	}
 
 	v.destroyIcon()
 
-	src := imageToRGBA(img)
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
 	stride := w * 4
