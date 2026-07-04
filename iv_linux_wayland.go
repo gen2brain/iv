@@ -92,6 +92,7 @@ type viewWayland struct {
 	fullscreen  bool
 	maximized   bool
 	beat        bool
+	armed       bool
 	closed      bool
 	closedFired bool
 	axisAccum   int32
@@ -319,9 +320,8 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 
 		v.fireRepeat()
 
-		wasBeat := v.beat
 		v.beat = hasDeadline || v.repeatKey != 0
-		if v.beat && !wasBeat && v.configured {
+		if v.beat && v.configured {
 			v.armFrame()
 		}
 
@@ -331,14 +331,21 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 	}
 }
 
+// armFrame requests a single frame callback to sustain the ctx-deadline heartbeat; idempotent while one is pending.
 func (v *viewWayland) armFrame() {
+	if v.armed {
+		return
+	}
+
+	v.armed = true
 	cb := v.surface.Frame()
 	cb.SetListener(wl.CallbackListener{Done: v.onFrame}, nil)
 	v.surface.Commit()
 }
 
 func (v *viewWayland) onFrame(_ any, _ wl.Callback, _ uint32) error {
-	if v.beat && !v.closed {
+	v.armed = false
+	if v.beat && !v.closed && v.configured {
 		v.surface.DamageBuffer(0, 0, 1, 1)
 		v.armFrame()
 	}
