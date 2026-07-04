@@ -56,6 +56,7 @@ type viewWayland struct {
 	iconFd      int
 	iconData    []byte
 	barIcon     *image.RGBA
+	appID       string
 
 	keyboard wl.Keyboard
 	pointer  wl.Pointer
@@ -125,6 +126,7 @@ func newWayland(opts Options) (*viewWayland, error) {
 	v.winWidth = opts.Width
 	v.winHeight = opts.Height
 	v.hoverBtn = -1
+	v.appID = opts.AppID
 	v.repeatRate = 25
 	v.repeatDelay = 500
 	v.cursorShape = wp.CursorShapeDeviceV1ShapeDefault
@@ -866,6 +868,9 @@ func (v *viewWayland) SetIcon(img image.Image) error {
 	}
 
 	if !v.hasIconMgr {
+		if v.csd && v.appID != "" {
+			v.installDesktopIcon(img)
+		}
 		return nil
 	}
 
