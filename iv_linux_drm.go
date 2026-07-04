@@ -79,6 +79,16 @@ type drmModeCursor struct {
 
 var ioctlModeCursor = ioctl.NewCode(ioctl.Write|ioctl.Read, uint16(unsafe.Sizeof(drmModeCursor{})), drm.IOCTLBase, 0xA3)
 
+type drmModeFBDirty struct {
+	fbID     uint32
+	flags    uint32
+	color    uint32
+	numClips uint32
+	clipsPtr uint64
+}
+
+var ioctlModeFBDirty = ioctl.NewCode(ioctl.Write|ioctl.Read, uint16(unsafe.Sizeof(drmModeFBDirty{})), drm.IOCTLBase, 0xB1)
+
 func newDRM(opts Options) (*viewDRM, error) {
 	v := &viewDRM{}
 	var err error
@@ -463,13 +473,19 @@ func (v *viewDRM) present(ms *mset, w, h int) {
 	stride := int(ms.fb.stride)
 	if stride == w*4 {
 		copy(ms.fb.data, ms.back)
-
-		return
+	} else {
+		for y := 0; y < h; y++ {
+			copy(ms.fb.data[y*stride:y*stride+w*4], ms.back[y*w*4:(y+1)*w*4])
+		}
 	}
 
-	for y := 0; y < h; y++ {
-		copy(ms.fb.data[y*stride:y*stride+w*4], ms.back[y*w*4:(y+1)*w*4])
-	}
+	v.dirtyFB(ms)
+}
+
+// dirtyFB notifies the driver the framebuffer changed so a self-refreshing panel (eDP PSR) re-scans it.
+func (v *viewDRM) dirtyFB(ms *mset) {
+	c := drmModeFBDirty{fbID: ms.fb.id}
+	_ = ioctl.Do(v.dev.Fd(), uintptr(ioctlModeFBDirty), uintptr(unsafe.Pointer(&c)))
 }
 
 func (v *viewDRM) SetIcon(image.Image) error {
