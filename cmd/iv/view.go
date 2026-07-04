@@ -795,12 +795,12 @@ func (v *view) rebuildArgs() bool {
 	}
 
 	cur := ""
+	oldIdx := v.idx
 	if v.idx < len(v.args) {
 		cur = v.args[v.idx].Name
 	}
 
 	v.args = items
-	v.idx = 0
 	for i := range items {
 		if items[i].Name == cur {
 			v.idx = i
@@ -808,6 +808,8 @@ func (v *view) rebuildArgs() bool {
 			return false
 		}
 	}
+
+	v.idx = min(oldIdx, len(items)-1)
 
 	return true
 }
