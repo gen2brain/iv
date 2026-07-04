@@ -44,6 +44,8 @@ github.com/fsnotify/fsnotify v1.5.1 h1:mZcQUHVQUQWoPXXtuf9yuEXKudkV2sx1E06UadKWp
 github.com/fsnotify/fsnotify v1.5.1/go.mod h1:T3375wBYaZdLLcVNkcVbzGHY7f1l/uK5T5Ai1i3InKU=
 github.com/gen2brain/jpegn v0.4.1 h1:SfGHJQYDqz6QOMpRN6YNcv5llSb3PmPiylgbLypwkg0=
 github.com/gen2brain/jpegn v0.4.1/go.mod h1:YvcVOmVPSAsefH6yn9HBW3uY0EHlZwCMoiJXoAWfgL0=
+github.com/gen2brain/jpegn v0.4.4 h1:KIM1n1161Jq2cm+wXBf7a63hH6XFnZX40j/uQq/McSw=
+github.com/gen2brain/jpegn v0.4.4/go.mod h1:YvcVOmVPSAsefH6yn9HBW3uY0EHlZwCMoiJXoAWfgL0=
 github.com/gen2brain/webp v0.4.1 h1:CALPa9b1ht6hAsNyg/kRVIt7BPaO2mH5OkIqbdyAwyM=
 github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1 h1:QbL/5oDUmRBzO9/Z7Seo6zf912W/a6Sr4Eu0G/3Jho0=

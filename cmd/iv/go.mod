@@ -10,9 +10,9 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/gen2brain/avif v0.5.3
-	github.com/gen2brain/heic v0.6.1
-	github.com/gen2brain/iv v0.2.1-0.20260629111037-43c7feff5a2f
-	github.com/gen2brain/jpegn v0.4.3
+	github.com/gen2brain/heic v0.7.1
+	github.com/gen2brain/iv v0.3.1-0.20260704155807-528724c27267
+	github.com/gen2brain/jpegn v0.4.4
 	github.com/gen2brain/jpegxl v0.5.3
 	github.com/gen2brain/svg v0.1.0
 	github.com/gen2brain/webp v0.6.4
@@ -20,6 +20,7 @@ require (
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
+	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567
 	github.com/samuel/go-pcx v0.0.0-20260121050006-4794b4f5cc55
 	github.com/samuel/go-psp v0.0.0-20210515041516-9afc43406e7c
 	github.com/xfmoulet/qoi v0.2.0
@@ -40,7 +41,6 @@ require (
 	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/holoplot/go-evdev v0.0.0-20260504100651-66d1748fe847 // indirect
 	github.com/jezek/xgb v1.3.1 // indirect
-	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1 // indirect

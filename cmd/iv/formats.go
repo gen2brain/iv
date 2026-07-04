@@ -14,7 +14,7 @@ import (
 	_ "github.com/biessek/golang-ico"
 	_ "github.com/donatj/mpo"
 	"github.com/gen2brain/avif"
-	_ "github.com/gen2brain/heic"
+	"github.com/gen2brain/heic"
 	"github.com/gen2brain/jpegn"
 	"github.com/gen2brain/jpegxl"
 	_ "github.com/gen2brain/svg"
@@ -33,14 +33,14 @@ var (
 	formats = []string{".jpg", ".jpeg", ".png", ".apng", ".gif", ".bmp", ".webp", ".avif", ".avifs", ".jxl", ".heic",
 		".ico", ".pcx", ".tif", ".tiff", ".pnm", ".pbm", ".pgm", ".ppm", ".svg", ".psd", ".psp", ".mpo", ".qoi"}
 
-	animations = []string{".gif", ".png", ".apng", ".webp", ".avif", ".avifs", ".jxl"}
+	animations = []string{".gif", ".png", ".apng", ".webp", ".avif", ".avifs", ".jxl", ".heic"}
 
 	formatsMime = []string{"image/jpeg", "image/png", "image/apng", "image/gif", "image/bmp", "image/webp", "image/avif",
 		"image/avif-sequence", "image/jxl", "image/heic", "image/vnd.microsoft.icon", "image/x-pcx", "image/tiff",
 		"image/x-portable-anymap", "image/x-portable-bitmap", "image/x-portable-graymap", "image/x-portable-pixmap",
 		"image/svg+xml", "image/vnd.adobe.photoshop", "application/x-paintshoppro", "image/mpo", "image/x-qoi"}
 
-	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl"}
+	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl", "image/heic"}
 )
 
 // decodeImage decodes a single image, using format-specific options where supported, else image.Decode.
@@ -138,6 +138,16 @@ func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 		images = ret.Image
 		for _, d := range ret.Delay {
 			delay = append(delay, time.Duration(d*100)*time.Millisecond)
+		}
+	case "HEIC":
+		ret, err := heic.DecodeAll(rc)
+		if err != nil {
+			return images, delay, err
+		}
+
+		images = ret.Image
+		for _, d := range ret.Delay {
+			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	}
 
