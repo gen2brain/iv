@@ -37,7 +37,7 @@ import (
 var (
 	formats = []string{".jpg", ".jpeg", ".png", ".apng", ".gif", ".bmp", ".webp", ".avif", ".avifs", ".jxl", ".heic",
 		".ico", ".pcx", ".tif", ".tiff", ".pnm", ".pbm", ".pgm", ".ppm", ".svg", ".psd", ".psp", ".mpo", ".qoi",
-		".hdr", ".pfm", ".icns"}
+		".hdr", ".pfm", ".icns", ".xbm"}
 
 	animations = []string{".gif", ".png", ".apng", ".webp", ".avif", ".avifs", ".jxl", ".heic"}
 
@@ -45,7 +45,7 @@ var (
 		"image/avif-sequence", "image/jxl", "image/heic", "image/vnd.microsoft.icon", "image/x-pcx", "image/tiff",
 		"image/x-portable-anymap", "image/x-portable-bitmap", "image/x-portable-graymap", "image/x-portable-pixmap",
 		"image/svg+xml", "image/vnd.adobe.photoshop", "application/x-paintshoppro", "image/mpo", "image/x-qoi",
-		"image/vnd.radiance", "image/x-pfm", "image/icns"}
+		"image/vnd.radiance", "image/x-pfm", "image/icns", "image/x-xbitmap"}
 
 	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl", "image/heic"}
 )
