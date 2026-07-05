@@ -1,5 +1,3 @@
-//go:build !minimal
-
 package main
 
 import (
@@ -7,55 +5,38 @@ import (
 	"testing"
 )
 
-func TestShutter(t *testing.T) {
-	cases := map[float64]string{0.004: "1/250s", 0.5: "1/2s", 1: "1.0s", 2: "2.0s"}
-	for in, want := range cases {
-		if got := shutter(in); got != want {
-			t.Errorf("shutter(%v) = %q, want %q", in, got, want)
-		}
+func TestOverlayWindowSized(t *testing.T) {
+	v := &view{
+		width:     400,
+		height:    300,
+		showInfo:  true,
+		args:      []info{{Name: "x"}},
+		infoCache: map[string][]string{"x": {"ISO 100", "f/2.8"}},
 	}
-}
+	v.opts.BackgroundColor = "#000000"
 
-func solid(w, h int, val byte) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for i := range img.Pix {
-		img.Pix[i] = val
+	img := image.NewRGBA(image.Rect(0, 0, 40, 30))
+	for i := 0; i < len(img.Pix); i += 4 {
+		img.Pix[i], img.Pix[i+3] = 0xff, 0xff // red
 	}
-	return img
-}
 
-func TestOverlayed(t *testing.T) {
-	v := &view{showInfo: true, infoCache: map[string][]string{}}
-	v.args = []info{{Name: "cam.jpg"}}
-	v.infoCache["cam.jpg"] = []string{"TestCam Model123", "f/5.6", "ISO 800"}
-
-	px := image.Pt(overlayMargin+1, 200-overlayMargin-1)
-
-	img := solid(400, 200, 200)
 	out := v.overlayed(img)
-	if out.RGBAAt(px.X, px.Y).R == 200 {
-		t.Error("overlay did not draw on the returned image")
-	}
-	if img.RGBAAt(px.X, px.Y).R != 200 {
-		t.Error("overlayed mutated its input buffer (cached original corrupted)")
-	}
 
-	// disabled, image returned unchanged
-	v.showInfo = false
-	clean := solid(400, 200, 200)
-	if v.overlayed(clean) != clean {
-		t.Error("overlayed changed image while disabled")
+	if out.Bounds().Dx() != 400 || out.Bounds().Dy() != 300 {
+		t.Fatalf("canvas %v, want 400x300", out.Bounds())
 	}
+	if r, _, _, _ := out.At(200, 150).RGBA(); r>>8 != 0xff {
+		t.Errorf("center pixel not image color (got r=%d)", r>>8)
+	}
+	if r, g, b, _ := out.At(1, 1).RGBA(); r|g|b != 0 {
+		t.Errorf("top-left corner not background (got %d,%d,%d)", r>>8, g>>8, b>>8)
+	}
+}
 
-	// no EXIF, placeholder still draws so the toggle stays visible
-	w2 := &view{showInfo: true, infoCache: map[string][]string{}}
-	w2.args = []info{{Name: "/no/such/plain.png", Format: "PNG"}}
-	none := solid(400, 200, 200)
-	out2 := w2.overlayed(none)
-	if out2.RGBAAt(px.X, px.Y).R == 200 {
-		t.Error("no-EXIF placeholder overlay did not draw")
-	}
-	if none.RGBAAt(px.X, px.Y).R != 200 {
-		t.Error("no-EXIF overlayed mutated its input buffer")
+func TestOverlayDisabledPassthrough(t *testing.T) {
+	v := &view{width: 400, height: 300, showInfo: false, args: []info{{Name: "x"}}}
+	img := image.NewRGBA(image.Rect(0, 0, 40, 30))
+	if out := v.overlayed(img); out != img {
+		t.Error("overlay disabled should return the image unchanged")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"io"
 	"os"
 	"strings"
@@ -31,7 +32,7 @@ func (v *view) toggleInfo() {
 	v.rebuild()
 }
 
-// overlayed returns img with the metadata overlay drawn into a reused scratch buffer, or img unchanged when disabled.
+// overlayed draws the metadata overlay on the window letterbox, or returns img unchanged when disabled.
 func (v *view) overlayed(img *image.RGBA) *image.RGBA {
 	if !v.showInfo || len(v.args) == 0 {
 		return img
@@ -42,31 +43,44 @@ func (v *view) overlayed(img *image.RGBA) *image.RGBA {
 		return img
 	}
 
-	b := img.Bounds()
-	if v.scratch == nil || v.scratch.Bounds() != b {
-		v.scratch = image.NewRGBA(b)
+	ib := img.Bounds()
+	w, h := v.width, v.height
+	if w < ib.Dx() || h < ib.Dy() {
+		w, h = ib.Dx(), ib.Dy()
 	}
-	copy(v.scratch.Pix, img.Pix)
+
+	canvas := image.Rect(0, 0, w, h)
+	if v.scratch == nil || v.scratch.Bounds() != canvas {
+		v.scratch = image.NewRGBA(canvas)
+	}
 	out := v.scratch
+
+	bg := color.RGBA{A: 0xff}
+	fmt.Sscanf(v.opts.BackgroundColor, "#%02x%02x%02x", &bg.R, &bg.G, &bg.B)
+	draw.Draw(out, canvas, image.NewUniform(bg), image.Point{}, draw.Src)
+
+	ox := (w - ib.Dx()) / 2
+	oy := (h - ib.Dy()) / 2
+	draw.Draw(out, image.Rect(ox, oy, ox+ib.Dx(), oy+ib.Dy()), img, ib.Min, draw.Src)
 
 	width := 0
 	for _, s := range lines {
-		if w := pixfont.MeasureString(s); w > width {
-			width = w
+		if lw := pixfont.MeasureString(s); lw > width {
+			width = lw
 		}
 	}
 
 	boxW := width + 2*overlayPad
 	boxH := len(lines)*overlayLineH + 2*overlayPad
 
-	x0 := b.Min.X + overlayMargin
-	y0 := b.Max.Y - overlayMargin - boxH
-	if y0 < b.Min.Y {
-		y0 = b.Min.Y
+	x0 := overlayMargin
+	y0 := h - overlayMargin - boxH
+	if y0 < 0 {
+		y0 = 0
 	}
 
-	for y := y0; y < y0+boxH && y < b.Max.Y; y++ {
-		for x := x0; x < x0+boxW && x < b.Max.X; x++ {
+	for y := y0; y < y0+boxH && y < h; y++ {
+		for x := x0; x < x0+boxW && x < w; x++ {
 			dim(out, x, y)
 		}
 	}
