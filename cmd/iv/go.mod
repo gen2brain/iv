@@ -11,7 +11,7 @@ require (
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.1
-	github.com/gen2brain/iv v0.3.1-0.20260704155807-528724c27267
+	github.com/gen2brain/iv v0.3.1-0.20260705140056-f554cb10abb0
 	github.com/gen2brain/jpegn v0.4.4
 	github.com/gen2brain/jpegxl v0.6.0
 	github.com/gen2brain/svg v0.1.0
