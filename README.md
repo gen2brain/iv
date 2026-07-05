@@ -9,7 +9,7 @@ Small and simple image viewer.
 ### Features
 
 * **Platforms:** Linux (X11, Wayland, DRM), Windows (Win32), macOS (Cocoa), BSDs (X11)
-* **Formats:** JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM/PBM/PGM/PPM, SVG, PSD, PSP, MPO, QOI
+* **Formats:** JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM/PBM/PGM/PPM, SVG, PSD, PSP, MPO, QOI, HDR, PFM
 * **Animation:** GIF, PNG, WEBP, AVIF, JXL, HEIC
 * **Auto-rotate:** applies the EXIF orientation (JPEG, WEBP, AVIF)
 * **URLs:** HTTP arguments, and image scraping from HTML pages

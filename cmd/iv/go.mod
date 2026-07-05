@@ -9,16 +9,17 @@ require (
 	github.com/donatj/mpo v0.1.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fvbommel/sortorder v1.1.0
-	github.com/gen2brain/avif v0.5.3
+	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.1
 	github.com/gen2brain/iv v0.3.1-0.20260704155807-528724c27267
 	github.com/gen2brain/jpegn v0.4.4
-	github.com/gen2brain/jpegxl v0.5.3
+	github.com/gen2brain/jpegxl v0.6.0
 	github.com/gen2brain/svg v0.1.0
 	github.com/gen2brain/webp v0.6.4
 	github.com/jbuchbinder/gopnm v0.0.0-20251119211316-bb594e0d2e34
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25
 	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253
+	github.com/mdouchement/hdr v0.2.4
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
 	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567
 	github.com/samuel/go-pcx v0.0.0-20260121050006-4794b4f5cc55
@@ -41,6 +42,7 @@ require (
 	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/holoplot/go-evdev v0.0.0-20260504100651-66d1748fe847 // indirect
 	github.com/jezek/xgb v1.3.1 // indirect
+	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1 // indirect
@@ -51,4 +53,5 @@ require (
 	golang.org/x/mobile v0.0.0-20260611195102-4dd8f1dbf5d2 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
+	gonum.org/v1/gonum v0.12.0 // indirect
 )

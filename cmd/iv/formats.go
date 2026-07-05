@@ -22,6 +22,10 @@ import (
 	_ "github.com/jbuchbinder/gopnm"
 	_ "github.com/jsummers/gobmp"
 	"github.com/kettek/apng"
+	"github.com/mdouchement/hdr"
+	_ "github.com/mdouchement/hdr/codec/pfm"
+	_ "github.com/mdouchement/hdr/codec/rgbe"
+	"github.com/mdouchement/hdr/tmo"
 	_ "github.com/oov/psd"
 	_ "github.com/samuel/go-pcx/pcx"
 	_ "github.com/samuel/go-psp/psp"
@@ -31,14 +35,16 @@ import (
 
 var (
 	formats = []string{".jpg", ".jpeg", ".png", ".apng", ".gif", ".bmp", ".webp", ".avif", ".avifs", ".jxl", ".heic",
-		".ico", ".pcx", ".tif", ".tiff", ".pnm", ".pbm", ".pgm", ".ppm", ".svg", ".psd", ".psp", ".mpo", ".qoi"}
+		".ico", ".pcx", ".tif", ".tiff", ".pnm", ".pbm", ".pgm", ".ppm", ".svg", ".psd", ".psp", ".mpo", ".qoi",
+		".hdr", ".pfm"}
 
 	animations = []string{".gif", ".png", ".apng", ".webp", ".avif", ".avifs", ".jxl", ".heic"}
 
 	formatsMime = []string{"image/jpeg", "image/png", "image/apng", "image/gif", "image/bmp", "image/webp", "image/avif",
 		"image/avif-sequence", "image/jxl", "image/heic", "image/vnd.microsoft.icon", "image/x-pcx", "image/tiff",
 		"image/x-portable-anymap", "image/x-portable-bitmap", "image/x-portable-graymap", "image/x-portable-pixmap",
-		"image/svg+xml", "image/vnd.adobe.photoshop", "application/x-paintshoppro", "image/mpo", "image/x-qoi"}
+		"image/svg+xml", "image/vnd.adobe.photoshop", "application/x-paintshoppro", "image/mpo", "image/x-qoi",
+		"image/vnd.radiance", "image/x-pfm"}
 
 	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl", "image/heic"}
 )
@@ -54,7 +60,15 @@ func decodeImage(format string, r io.Reader) (image.Image, error) {
 		return avif.Decode(r, avif.Options{AutoRotate: true})
 	default:
 		img, _, err := image.Decode(r)
-		return img, err
+		if err != nil {
+			return nil, err
+		}
+
+		if hdrImg, ok := img.(hdr.Image); ok {
+			img = tmo.NewDefaultReinhard05(hdrImg).Perform()
+		}
+
+		return img, nil
 	}
 }
 
