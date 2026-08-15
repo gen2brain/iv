@@ -1,6 +1,6 @@
 module github.com/gen2brain/iv
 
-go 1.26
+go 1.26.4
 
 require (
 	codeberg.org/tesselslate/wl v0.3.24

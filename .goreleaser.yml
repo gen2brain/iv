@@ -20,8 +20,6 @@ builds:
       - "-trimpath"
     ldflags: &ldflags
       - "-s -w"
-    tags: &tags
-      - nodynamic
     goos:
       - linux
     goarch:
@@ -33,7 +31,6 @@ builds:
     env: *env
     flags: *flags
     ldflags: *ldflags
-    tags: *tags
     goos:
       - linux
     goarch:
@@ -78,7 +75,6 @@ builds:
     env: *env
     flags: *flags
     ldflags: *ldflags
-    tags: *tags
     goos:
       - freebsd
     goarch:
@@ -90,7 +86,6 @@ builds:
     env: *env
     flags: *flags
     ldflags: *ldflags
-    tags: *tags
     goos:
       - openbsd
     goarch:

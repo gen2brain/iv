@@ -11,19 +11,16 @@ Small and simple image viewer.
 * **Platforms:** Linux (X11, Wayland, DRM), Windows (Win32), macOS (Cocoa), BSDs (X11)
 * **Formats:** JPEG, GIF, PNG, BMP, WEBP, AVIF, JXL, HEIC, ICO, PCX, TIFF, PNM/PBM/PGM/PPM, SVG, PSD, PSP, MPO, QOI, HDR, PFM, ICNS, XBM, XPM
 * **Animation:** GIF, PNG, WEBP, AVIF, JXL, HEIC
-* **Auto-rotate:** applies the EXIF orientation (JPEG, WEBP, AVIF)
+* **Auto-rotate:** applies the EXIF orientation (JPEG, WEBP, AVIF, HEIC)
 * **URLs:** HTTP arguments, and image scraping from HTML pages
 * **Auto-reload:** when the current image is modified or its directory changes
 * **Single instance:** open files in an already-running window
 * **Clipboard:** copy the current image, or its path, to the clipboard
-* **Self-contained:** no external runtime dependencies, single static binary \*
+* **Self-contained:** no external runtime dependencies, single static binary
  
 ### Download
 
 Download the latest binaries from the [releases](https://github.com/gen2brain/iv/releases).
-
-\* Release binaries use `CGO_ENABLED=0`; Linux/BSD binaries are built with `nodynamic` tag (no libc).
-Note that without `nodynamic` even with `CGO_ENABLED=0` the binary will still link to libc.
 
 ### Installation
 
@@ -35,7 +32,6 @@ Add `-ldflags "-s -w"` to strip debug symbols.
 ### Build tags
 
 * `minimal` - build support only for JPEG, GIF and PNG (stdlib only)
-* `nodynamic` - do not use system shared libraries (`libwebp`, `libavif`, `libjxl`, `libheif`)
 * `x11` - use X11 in macOS or Windows (e.g., via [XQuartz](https://en.wikipedia.org/wiki/XQuartz) or [Xming](https://en.wikipedia.org/wiki/Xming))
 
 ### Keybindings

@@ -13,13 +13,13 @@ import (
 
 	_ "github.com/biessek/golang-ico"
 	_ "github.com/donatj/mpo"
-	"github.com/gen2brain/avif"
+	"github.com/gen2brain/gav1d/avif"
+	"github.com/gen2brain/h265/heic"
 	_ "github.com/gen2brain/iv/cmd/iv/codec"
-	"github.com/gen2brain/heic"
 	"github.com/gen2brain/jpegn"
-	"github.com/gen2brain/jpegxl"
+	"github.com/gen2brain/jxl"
 	_ "github.com/gen2brain/svg"
-	"github.com/gen2brain/webp"
+	"github.com/gen2brain/vpx/webp"
 	_ "github.com/jbuchbinder/gopnm"
 	_ "github.com/jsummers/gobmp"
 	"github.com/kettek/apng"
@@ -59,6 +59,8 @@ func decodeImage(format string, r io.Reader) (image.Image, error) {
 		return webp.Decode(r, webp.Options{AutoRotate: true})
 	case "AVIF", "AVIFS":
 		return avif.Decode(r, avif.Options{AutoRotate: true})
+	case "HEIC":
+		return heic.Decode(r, heic.Options{AutoRotate: true})
 	default:
 		img, _, err := image.Decode(r)
 		if err != nil {
@@ -145,17 +147,17 @@ func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	case "JXL":
-		ret, err := jpegxl.DecodeAll(rc)
+		ret, err := jxl.DecodeAll(rc)
 		if err != nil {
 			return images, delay, err
 		}
 
 		images = ret.Image
 		for _, d := range ret.Delay {
-			delay = append(delay, time.Duration(d*100)*time.Millisecond)
+			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	case "HEIC":
-		ret, err := heic.DecodeAll(rc)
+		ret, err := heic.DecodeAll(rc, heic.Options{AutoRotate: true})
 		if err != nil {
 			return images, delay, err
 		}

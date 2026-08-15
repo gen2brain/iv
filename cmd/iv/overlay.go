@@ -12,11 +12,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gen2brain/avif"
-	"github.com/gen2brain/heic"
+	"github.com/gen2brain/gav1d/avif"
+	"github.com/gen2brain/h265/heic"
 	"github.com/gen2brain/jpegn"
-	"github.com/gen2brain/jpegxl"
-	"github.com/gen2brain/webp"
+	"github.com/gen2brain/jxl"
+	"github.com/gen2brain/vpx/webp"
 	"github.com/pbnjay/pixfont"
 )
 
@@ -210,7 +210,7 @@ func fetchExif(format string, r io.Reader) (exifData, bool) {
 			return exifData{e.Make, e.Model, e.DateTimeOriginal, e.ExposureTime, e.FNumber, e.ISOSpeed, e.FocalLength, e.GPSLatitude, e.GPSLongitude}, true
 		}
 	case "JXL":
-		if e, err := jpegxl.DecodeExif(r); err == nil {
+		if e, err := jxl.DecodeExif(r); err == nil {
 			return exifData{e.Make, e.Model, e.DateTimeOriginal, e.ExposureTime, e.FNumber, e.ISOSpeed, e.FocalLength, e.GPSLatitude, e.GPSLongitude}, true
 		}
 	case "HEIC":
