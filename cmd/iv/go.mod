@@ -11,7 +11,7 @@ require (
 	github.com/fvbommel/sortorder v1.1.0
 	github.com/gen2brain/gav1d v0.2.3
 	github.com/gen2brain/h265 v0.1.1
-	github.com/gen2brain/iv v0.3.1-0.20260705140056-f554cb10abb0
+	github.com/gen2brain/iv v0.4.1-0.20260815182048-6e4ea823839a
 	github.com/gen2brain/jpegn v0.4.4
 	github.com/gen2brain/jxl v0.1.2
 	github.com/gen2brain/svg v0.1.0
@@ -32,11 +32,11 @@ require (
 )
 
 require (
-	codeberg.org/tesselslate/wl v0.3.24 // indirect
-	codeberg.org/tesselslate/wl-protocols v0.3.47 // indirect
+	codeberg.org/tesselslate/wl v0.4.26 // indirect
+	codeberg.org/tesselslate/wl-protocols v0.4.49 // indirect
 	github.com/NeowayLabs/drm v0.0.0-20190824133025-4939fc0ad345 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20260526185140-fb298caac7ca // indirect
-	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/gen2brain/shm v0.2.2 // indirect
 	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/holoplot/go-evdev v0.0.0-20260504100651-66d1748fe847 // indirect
@@ -46,10 +46,10 @@ require (
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1 // indirect
 	golang.design/x/x11 v0.2.0 // indirect
-	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
+	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
 	golang.org/x/exp/shiny v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/mobile v0.0.0-20260611195102-4dd8f1dbf5d2 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 )
