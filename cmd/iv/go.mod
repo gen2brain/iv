@@ -9,11 +9,11 @@ require (
 	github.com/donatj/mpo v0.1.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fvbommel/sortorder v1.1.0
-	github.com/gen2brain/gav1d v0.2.3
-	github.com/gen2brain/h265 v0.1.1
+	github.com/gen2brain/gav1d v0.2.4
+	github.com/gen2brain/h265 v0.1.2
 	github.com/gen2brain/iv v0.4.1-0.20260815182048-6e4ea823839a
-	github.com/gen2brain/jpegn v0.4.4
-	github.com/gen2brain/jxl v0.1.2
+	github.com/gen2brain/jpegn v0.6.0
+	github.com/gen2brain/jxl v0.2.0
 	github.com/gen2brain/svg v0.1.0
 	github.com/gen2brain/vpx v0.1.0
 	github.com/jbuchbinder/gopnm v0.0.0-20251119211316-bb594e0d2e34
