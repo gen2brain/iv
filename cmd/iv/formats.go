@@ -13,12 +13,12 @@ import (
 
 	_ "github.com/biessek/golang-ico"
 	_ "github.com/donatj/mpo"
+	"github.com/gen2brain/folio/svg"
 	"github.com/gen2brain/gav1d/avif"
 	"github.com/gen2brain/h265/heic"
 	_ "github.com/gen2brain/iv/cmd/iv/codec"
 	"github.com/gen2brain/jpegn"
 	"github.com/gen2brain/jxl"
-	_ "github.com/gen2brain/svg"
 	"github.com/gen2brain/vpx/webp"
 	_ "github.com/jbuchbinder/gopnm"
 	_ "github.com/jsummers/gobmp"
@@ -49,6 +49,14 @@ var (
 
 	animationsMime = []string{"image/png", "image/apng", "image/gif", "image/webp", "image/avif", "image/avif-sequence", "image/jxl", "image/heic"}
 )
+
+var svgMagic = []string{"\xef\xbb\xbf", "<?xml", "<svg", "?<svg", "??<svg", "<!--", "<!DOCTYPE"}
+
+func init() {
+	for _, m := range svgMagic {
+		image.RegisterFormat("svg", m, svg.Decode, svg.DecodeConfig)
+	}
+}
 
 // decodeImage decodes a single image, using format-specific options where supported, else image.Decode.
 func decodeImage(format string, r io.Reader) (image.Image, error) {
