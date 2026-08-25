@@ -15,10 +15,10 @@ require (
 	github.com/gen2brain/iv v0.4.1-0.20260815182048-6e4ea823839a
 	github.com/gen2brain/jpegn v0.6.0
 	github.com/gen2brain/jxl v0.2.0
+	github.com/gen2brain/pngn v0.1.3
 	github.com/gen2brain/vpx v0.2.0
 	github.com/jbuchbinder/gopnm v0.0.0-20251119211316-bb594e0d2e34
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25
-	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253
 	github.com/mdouchement/hdr v0.2.4
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
 	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567

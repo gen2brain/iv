@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary"
+	"bytes"
 	"fmt"
 	"image"
 	"math"
@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/fvbommel/sortorder/casefolded"
+	"github.com/gen2brain/pngn"
 )
 
 const pngPeek = 1 << 13
@@ -25,16 +26,8 @@ const infoConcurrency = 16
 
 // refinePNG distinguishes APNG from PNG by the presence of an acTL chunk.
 func refinePNG(header []byte) (string, bool) {
-	i, n := int64(8), int64(len(header))
-	for i+8 <= n {
-		switch string(header[i+4 : i+8]) {
-		case "acTL":
-			return "APNG", true
-		case "IDAT":
-			return "PNG", false
-		}
-
-		i += 8 + int64(binary.BigEndian.Uint32(header[i:i+4])) + 4
+	if animated, err := pngn.Animated(bytes.NewReader(header)); err == nil && animated {
+		return "APNG", true
 	}
 
 	return "PNG", false
@@ -109,7 +102,7 @@ func fileInfo(fileName string) (info, error) {
 	i.Height = cfg.Height
 	i.IsAnimation = isAnimation(fileName)
 
-	if format == "apng" {
+	if format == "png" {
 		i.Format, i.IsAnimation = refinePNG(header)
 	}
 
@@ -160,7 +153,7 @@ func urlInfo(uri string) (info, error) {
 	i.IsURL = true
 	i.IsAnimation = isAnimationMIME(res)
 
-	if format == "apng" {
+	if format == "png" {
 		i.Format, i.IsAnimation = refinePNG(header)
 	}
 

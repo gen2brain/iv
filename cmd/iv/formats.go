@@ -19,10 +19,10 @@ import (
 	_ "github.com/gen2brain/iv/cmd/iv/codec"
 	"github.com/gen2brain/jpegn"
 	"github.com/gen2brain/jxl"
+	"github.com/gen2brain/pngn"
 	"github.com/gen2brain/vpx/webp"
 	_ "github.com/jbuchbinder/gopnm"
 	_ "github.com/jsummers/gobmp"
-	"github.com/kettek/apng"
 	"github.com/mdouchement/hdr"
 	_ "github.com/mdouchement/hdr/codec/pfm"
 	_ "github.com/mdouchement/hdr/codec/rgbe"
@@ -69,6 +69,8 @@ func decodeImage(format string, r io.Reader) (image.Image, error) {
 		return avif.Decode(r, avif.Options{AutoRotate: true})
 	case "HEIC":
 		return heic.Decode(r, heic.Options{AutoRotate: true})
+	case "PNG", "APNG":
+		return pngn.Decode(r, &pngn.Options{AutoRotate: true})
 	default:
 		img, _, err := image.Decode(r)
 		if err != nil {
@@ -123,15 +125,13 @@ func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 			delay = append(delay, time.Duration(d*10)*time.Millisecond)
 		}
 	case "APNG", "PNG":
-		ret, err := apng.DecodeAll(rc)
+		ret, err := pngn.DecodeAll(rc, &pngn.Options{AutoRotate: true})
 		if err != nil {
 			return images, delay, err
 		}
 
-		for _, frame := range ret.Frames {
-			images = append(images, frame.Image)
-
-			d := float64(frame.DelayNumerator) / float64(frame.DelayDenominator)
+		images = ret.Image
+		for _, d := range ret.Delay {
 			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	case "WEBP":
