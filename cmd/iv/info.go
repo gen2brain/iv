@@ -24,15 +24,6 @@ const pngPeek = 1 << 13
 
 const infoConcurrency = 16
 
-// refinePNG distinguishes APNG from PNG by the presence of an acTL chunk.
-func refinePNG(header []byte) (string, bool) {
-	if animated, err := pngn.Animated(bytes.NewReader(header)); err == nil && animated {
-		return "APNG", true
-	}
-
-	return "PNG", false
-}
-
 type info struct {
 	Id          int
 	Name        string
@@ -87,6 +78,7 @@ func fileInfo(fileName string) (info, error) {
 
 	br := bufio.NewReaderSize(f, pngPeek)
 	header, _ := br.Peek(pngPeek)
+	apng, _ := pngn.Animated(bytes.NewReader(header))
 
 	cfg, format, err := image.DecodeConfig(br)
 	if err != nil {
@@ -103,7 +95,10 @@ func fileInfo(fileName string) (info, error) {
 	i.IsAnimation = isAnimation(fileName)
 
 	if format == "png" {
-		i.Format, i.IsAnimation = refinePNG(header)
+		i.IsAnimation = apng
+		if apng {
+			i.Format = "APNG"
+		}
 	}
 
 	return i, nil
@@ -125,6 +120,7 @@ func urlInfo(uri string) (info, error) {
 
 	br := bufio.NewReaderSize(res.Body, pngPeek)
 	header, _ := br.Peek(pngPeek)
+	apng, _ := pngn.Animated(bytes.NewReader(header))
 
 	cfg, format, err := image.DecodeConfig(br)
 	if err != nil {
@@ -154,7 +150,10 @@ func urlInfo(uri string) (info, error) {
 	i.IsAnimation = isAnimationMIME(res)
 
 	if format == "png" {
-		i.Format, i.IsAnimation = refinePNG(header)
+		i.IsAnimation = apng
+		if apng {
+			i.Format = "APNG"
+		}
 	}
 
 	return i, nil
