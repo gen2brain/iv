@@ -71,3 +71,35 @@ func TestRebuildArgsDeleteCurrent(t *testing.T) {
 		t.Fatalf("after delete sibling: name=%s, want b.png", filepath.Base(v.args[v.idx].Name))
 	}
 }
+
+func TestRebuildArgsBrowse(t *testing.T) {
+	dir := t.TempDir()
+	cur := filepath.Join(dir, "a.png")
+	writePNG(t, cur)
+
+	items := infos([]string{cur}, 1)
+	v := &view{named: []string{cur}, opts: options{Sort: 1, Browse: true}, args: items}
+	if err := v.browse(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, n := range []string{"b.png", "c.png"} {
+		writePNG(t, filepath.Join(dir, n))
+		if gone := v.rebuildArgs(); gone {
+			t.Fatalf("add %s: rebuildArgs returned true, want false", n)
+		}
+	}
+
+	if len(v.args) != 3 || v.args[v.idx].Name != cur {
+		t.Fatalf("after adds: len=%d current=%s, want 3 and %s", len(v.args), v.args[v.idx].Name, cur)
+	}
+
+	v.idx = 2
+	if err := os.Remove(filepath.Join(dir, "b.png")); err != nil {
+		t.Fatal(err)
+	}
+	v.rebuildArgs()
+	if len(v.args) != 2 || filepath.Base(v.args[v.idx].Name) != "c.png" {
+		t.Fatalf("after sibling delete: len=%d current=%s, want 2 and c.png", len(v.args), filepath.Base(v.args[v.idx].Name))
+	}
+}

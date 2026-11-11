@@ -165,6 +165,7 @@ type view struct {
 	socketPath string
 
 	named         []string
+	browseFile    string
 	watcher       *fsnotify.Watcher
 	watched       map[string]bool
 	currentPath   string
@@ -774,7 +775,13 @@ func (v *view) refreshCurrentInfo() {
 func (v *view) rebuildArgs() bool {
 	var named []string
 	for _, n := range v.named {
-		if !isURL(n) {
+		switch {
+		case isURL(n):
+		case n == v.browseFile:
+			if l, err := browseList(n); err == nil {
+				named = append(named, l...)
+			}
+		default:
 			named = append(named, n)
 		}
 	}
@@ -1539,21 +1546,13 @@ func (v *view) zoomPercent() int {
 
 func (v *view) browse() error {
 	fileName := v.args[0].Name
-	dirName := filepath.Dir(fileName)
 
-	fs, err := os.ReadDir(dirName)
+	a, err := browseList(fileName)
 	if err != nil {
 		return err
 	}
 
-	a := make([]string, 0, len(fs))
-
-	for _, f := range fs {
-		fp := filepath.Join(dirName, f.Name())
-		if !f.IsDir() && (isImage(fp) || f.Name() == filepath.Base(fileName)) {
-			a = append(a, fp)
-		}
-	}
+	v.browseFile = fileName
 
 	out := infos(a, v.opts.Sort)
 
@@ -1569,4 +1568,32 @@ func (v *view) browse() error {
 	}
 
 	return nil
+}
+
+// browseList returns the images in the directory of fileName, with fileName itself spelled as given.
+func browseList(fileName string) ([]string, error) {
+	dirName := filepath.Dir(fileName)
+	base := filepath.Base(fileName)
+
+	fs, err := os.ReadDir(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	a := make([]string, 0, len(fs))
+
+	for _, f := range fs {
+		if f.IsDir() {
+			continue
+		}
+
+		switch {
+		case f.Name() == base:
+			a = append(a, fileName)
+		case isImage(f.Name()):
+			a = append(a, filepath.Join(dirName, f.Name()))
+		}
+	}
+
+	return a, nil
 }

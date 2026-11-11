@@ -83,11 +83,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	a := args(flag.Args(), opts.Recursive)
+	in := flag.Args()
+	if piped() {
+		in = append(in, lines(os.Stdin)...)
+	}
+
+	a := args(in, opts.Recursive)
 	if len(a) == 0 && !opts.Wait {
 		arg := ""
-		if len(flag.Args()) > 0 {
-			arg = flag.Args()[0]
+		if len(in) > 0 {
+			arg = in[0]
 		}
 
 		switch {
@@ -122,13 +127,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	v.named = flag.Args()
+	v.named = in
 
 	if opts.Single {
 		v.serveIPC()
 	}
 
-	v.startWatch(watchDirs(flag.Args()))
+	v.startWatch(watchDirs(in))
 
 	if err = v.run(); err != nil {
 		stderr(err)
@@ -212,10 +217,6 @@ func printKeys() {
 
 func args(in []string, recursive bool) []string {
 	out := make([]string, 0)
-
-	if piped() {
-		in = append(in, lines(os.Stdin)...)
-	}
 
 	for _, arg := range in {
 		stat, err := os.Stat(arg)
