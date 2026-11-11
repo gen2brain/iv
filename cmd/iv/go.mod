@@ -12,7 +12,7 @@ require (
 	github.com/gen2brain/folio v0.2.9
 	github.com/gen2brain/gav1d v0.2.7
 	github.com/gen2brain/h265 v0.2.5
-	github.com/gen2brain/iv v0.4.1-0.20260815182048-6e4ea823839a
+	github.com/gen2brain/iv v0.4.1-0.20261111174244-0446b8532aa7
 	github.com/gen2brain/jpegn v0.6.2
 	github.com/gen2brain/jxl v0.2.1
 	github.com/gen2brain/pngn v0.1.3
