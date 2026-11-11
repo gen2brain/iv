@@ -120,6 +120,7 @@ func (v *view) classify(ev fsnotify.Event, reloadCurrent, reloadList *bool) bool
 
 	v.mu.Lock()
 	cur := v.currentPath
+	listed := v.listed[name]
 	v.mu.Unlock()
 
 	hit := false
@@ -129,7 +130,7 @@ func (v *view) classify(ev fsnotify.Event, reloadCurrent, reloadList *bool) bool
 		hit = true
 	}
 
-	if isImage(name) && ev.Op.Has(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) {
+	if isImage(name) && (ev.Op.Has(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) || (!listed && ev.Op.Has(fsnotify.Write))) {
 		*reloadList = true
 		hit = true
 	}

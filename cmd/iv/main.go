@@ -88,7 +88,7 @@ func main() {
 		in = append(in, lines(os.Stdin)...)
 	}
 
-	a := args(in, opts.Recursive)
+	a := args(in, opts.Recursive, false)
 	if len(a) == 0 && !opts.Wait {
 		arg := ""
 		if len(in) > 0 {
@@ -115,7 +115,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	items := infos(a, opts.Sort)
+	items := infos(a, opts.Sort, false)
 	if len(items) == 0 && !opts.Wait {
 		stderr("no images found")
 		os.Exit(1)
@@ -215,7 +215,7 @@ func printKeys() {
 	}
 }
 
-func args(in []string, recursive bool) []string {
+func args(in []string, recursive, quiet bool) []string {
 	out := make([]string, 0)
 
 	for _, arg := range in {
@@ -223,7 +223,7 @@ func args(in []string, recursive bool) []string {
 		if err != nil {
 			if isURL(arg) {
 				out = append(out, expandURL(arg)...)
-			} else {
+			} else if !quiet {
 				stderr(err)
 			}
 
@@ -238,7 +238,9 @@ func args(in []string, recursive bool) []string {
 		if recursive {
 			_ = filepath.WalkDir(arg, func(p string, d fs.DirEntry, err error) error {
 				if err != nil {
-					stderr(err)
+					if !quiet {
+						stderr(err)
+					}
 					return nil
 				}
 
@@ -254,14 +256,18 @@ func args(in []string, recursive bool) []string {
 
 		g, err := filepath.Glob(filepath.Join(arg, "*"))
 		if err != nil {
-			stderr(err)
+			if !quiet {
+				stderr(err)
+			}
 			continue
 		}
 
 		for _, p := range g {
 			i, err := os.Stat(p)
 			if err != nil {
-				stderr(err)
+				if !quiet {
+					stderr(err)
+				}
 				continue
 			}
 

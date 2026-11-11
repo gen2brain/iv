@@ -159,7 +159,7 @@ func urlInfo(uri string) (info, error) {
 	return i, nil
 }
 
-func infos(a []string, sortBy int) []info {
+func infos(a []string, sortBy int, quiet bool) []info {
 	var m sync.Mutex
 	var wg sync.WaitGroup
 
@@ -184,7 +184,9 @@ func infos(a []string, sortBy int) []info {
 			}
 
 			if err != nil {
-				stderr(arg, err)
+				if !quiet {
+					stderr(arg, err)
+				}
 
 				return
 			}

@@ -91,7 +91,7 @@ func (v *view) handleConn(conn net.Conn) {
 		return
 	}
 
-	if items := infos(paths, v.opts.Sort); len(items) > 0 {
+	if items := infos(paths, v.opts.Sort, false); len(items) > 0 {
 		v.push(items)
 	}
 }

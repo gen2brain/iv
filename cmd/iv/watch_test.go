@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func writePNG(t *testing.T, path string) {
@@ -77,7 +79,7 @@ func TestRebuildArgsBrowse(t *testing.T) {
 	cur := filepath.Join(dir, "a.png")
 	writePNG(t, cur)
 
-	items := infos([]string{cur}, 1)
+	items := infos([]string{cur}, 1, false)
 	v := &view{named: []string{cur}, opts: options{Sort: 1, Browse: true}, args: items}
 	if err := v.browse(); err != nil {
 		t.Fatal(err)
@@ -101,5 +103,23 @@ func TestRebuildArgsBrowse(t *testing.T) {
 	v.rebuildArgs()
 	if len(v.args) != 2 || filepath.Base(v.args[v.idx].Name) != "c.png" {
 		t.Fatalf("after sibling delete: len=%d current=%s, want 2 and c.png", len(v.args), filepath.Base(v.args[v.idx].Name))
+	}
+}
+
+func TestClassifyWriteUnlisted(t *testing.T) {
+	dir := t.TempDir()
+	listed := filepath.Join(dir, "a.png")
+	writePNG(t, listed)
+
+	v := &view{args: infos([]string{listed}, 0, false)}
+	v.syncListed()
+
+	var rc, rl bool
+	if v.classify(fsnotify.Event{Name: listed, Op: fsnotify.Write}, &rc, &rl) || rl {
+		t.Fatal("write to a listed sibling triggered a list rebuild")
+	}
+
+	if !v.classify(fsnotify.Event{Name: filepath.Join(dir, "b.png"), Op: fsnotify.Write}, &rc, &rl) || !rl {
+		t.Fatal("write to an unlisted image did not trigger a list rebuild")
 	}
 }

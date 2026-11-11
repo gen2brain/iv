@@ -166,6 +166,7 @@ type view struct {
 
 	named         []string
 	browseFile    string
+	listed        map[string]bool
 	watcher       *fsnotify.Watcher
 	watched       map[string]bool
 	currentPath   string
@@ -251,7 +252,27 @@ func newView(opts options, args []info) (*view, error) {
 		}
 	}
 
+	v.syncListed()
+
 	return v, nil
+}
+
+// syncListed records the absolute paths of the current list for the watcher goroutine.
+func (v *view) syncListed() {
+	listed := make(map[string]bool, len(v.args))
+	for _, a := range v.args {
+		if a.IsURL {
+			continue
+		}
+
+		if abs, err := filepath.Abs(a.Name); err == nil {
+			listed[abs] = true
+		}
+	}
+
+	v.mu.Lock()
+	v.listed = listed
+	v.mu.Unlock()
 }
 
 func (v *view) run() error {
@@ -718,6 +739,8 @@ func (v *view) drainPending() bool {
 		v.watchPath(it.Name)
 	}
 
+	v.syncListed()
+
 	return true
 }
 
@@ -786,13 +809,15 @@ func (v *view) rebuildArgs() bool {
 		}
 	}
 
-	items := infos(args(named, v.opts.Recursive), v.opts.Sort)
+	items := infos(args(named, v.opts.Recursive, true), v.opts.Sort, true)
 
 	for _, it := range v.args {
 		if it.IsURL {
 			items = append(items, it)
 		}
 	}
+
+	defer v.syncListed()
 
 	if len(items) == 0 {
 		v.args = nil
@@ -1554,7 +1579,7 @@ func (v *view) browse() error {
 
 	v.browseFile = fileName
 
-	out := infos(a, v.opts.Sort)
+	out := infos(a, v.opts.Sort, false)
 
 	if len(out) > 1 {
 		v.args = out
