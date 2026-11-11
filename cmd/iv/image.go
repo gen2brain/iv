@@ -63,6 +63,10 @@ func resize(img image.Image, width, height int, filter transform.ResampleFilter)
 		return clone.AsShallowRGBA(img)
 	}
 
+	if filter.Support <= 0 && (dstW < srcW || dstH < srcH) {
+		filter = transform.Linear
+	}
+
 	return transform.Resize(img, dstW, dstH, filter)
 }
 

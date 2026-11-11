@@ -188,3 +188,30 @@ func TestPanBy(t *testing.T) {
 		t.Fatal("expected not pannable at fit")
 	}
 }
+
+func TestFitDownscaleNearest(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 300, 300))
+	for y := 0; y < 300; y++ {
+		for x := 0; x < 300; x++ {
+			if x%3 == 0 {
+				src.Pix[y*src.Stride+x*4+0] = 255
+			}
+			src.Pix[y*src.Stride+x*4+3] = 255
+		}
+	}
+
+	v := &view{width: 200, height: 200, filter: 0}
+	out := fit(src, v.width, v.height, v.resampleFilter())
+
+	var sum int
+	for y := 0; y < out.Bounds().Dy(); y++ {
+		for x := 0; x < out.Bounds().Dx(); x++ {
+			sum += int(out.Pix[y*out.Stride+x*4])
+		}
+	}
+
+	mean := sum / (out.Bounds().Dx() * out.Bounds().Dy())
+	if mean < 75 || mean > 95 {
+		t.Fatalf("downscaled mean red=%d, want ~85 (a 1/3 coverage line pattern)", mean)
+	}
+}
