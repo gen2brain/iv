@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"image/png"
 	"path/filepath"
 
@@ -26,7 +27,9 @@ func (v *view) copyPath() {
 		}
 	}
 
-	clipboard.Write(clipboard.FmtText, []byte(p))
+	if _, err := clipboard.Write(context.Background(), clipboard.FmtText, []byte(p)); err != nil {
+		stderr(err)
+	}
 }
 
 func (v *view) copyImage() {
@@ -50,5 +53,7 @@ func (v *view) copyImage() {
 		return
 	}
 
-	clipboard.Write(clipboard.FmtImage, b.Bytes())
+	if _, err := clipboard.Write(context.Background(), clipboard.FmtImage, b.Bytes()); err != nil {
+		stderr(err)
+	}
 }
