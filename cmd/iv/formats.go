@@ -64,7 +64,7 @@ func decodeImage(format string, r io.Reader) (image.Image, error) {
 	case "JPEG":
 		return jpegn.Decode(r, &jpegn.Options{AutoRotate: true, ToRGBA: true})
 	case "WEBP":
-		return webp.Decode(r, webp.Options{AutoRotate: true})
+		return webp.Decode(r, webp.Options{AutoRotate: true, ToRGBA: true})
 	case "AVIF", "AVIFS":
 		return avif.Decode(r, avif.Options{AutoRotate: true})
 	case "HEIC":
@@ -135,7 +135,7 @@ func decodeAll(fileInfo info) ([]image.Image, []time.Duration, error) {
 			delay = append(delay, time.Duration(d*float64(time.Second)))
 		}
 	case "WEBP":
-		ret, err := webp.DecodeAll(rc, webp.Options{AutoRotate: true})
+		ret, err := webp.DecodeAll(rc, webp.Options{AutoRotate: true, ToRGBA: true})
 		if err != nil {
 			return images, delay, err
 		}
