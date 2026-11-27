@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gen2brain/wl"
 	"github.com/pbnjay/pixfont"
 )
 
@@ -67,4 +68,41 @@ func TestWLCanvas(t *testing.T) {
 
 	bgra.Set(-1, 0, color.RGBA{R: 1, G: 2, B: 3, A: 4})
 	bgra.Set(5, 5, color.RGBA{R: 1, G: 2, B: 3, A: 4})
+}
+
+func TestWaylandKeyRepeatStops(t *testing.T) {
+	v := &viewWayland{repeatRate: 25, repeatDelay: 0}
+	presses := 0
+	v.SetKeyPressHandler(func(int) { presses++ })
+
+	press := func() {
+		_ = v.onKey(nil, wl.Keyboard{}, 0, 0, uint32(KeyRight-8), wl.KeyboardKeyStatePressed)
+	}
+
+	press()
+	if v.repeatKey != KeyRight {
+		t.Fatalf("repeatKey = %d after press, want %d", v.repeatKey, KeyRight)
+	}
+
+	_ = v.onKeyboardLeave(nil, wl.Keyboard{}, 0, wl.Surface{})
+	if v.repeatKey != 0 {
+		t.Fatalf("repeatKey = %d after keyboard leave, want 0", v.repeatKey)
+	}
+
+	press()
+	_ = v.onRepeatInfo(nil, wl.Keyboard{}, 0, 600)
+	if v.repeatKey != 0 {
+		t.Fatalf("repeatKey = %d after repeat rate 0, want 0", v.repeatKey)
+	}
+
+	v.fireRepeat()
+
+	press()
+	if v.repeatKey != 0 {
+		t.Fatalf("repeatKey = %d after press with repeat disabled, want 0", v.repeatKey)
+	}
+
+	if presses != 3 {
+		t.Fatalf("presses = %d, want 3", presses)
+	}
 }

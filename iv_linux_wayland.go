@@ -526,7 +526,7 @@ func (v *viewWayland) onToplevelClose(_ any, _ xdg.Toplevel) error {
 func (v *viewWayland) onCapabilities(_ any, self wl.Seat, caps wl.SeatCapability) error {
 	if caps&wl.SeatCapabilityKeyboard != 0 && v.keyboard == (wl.Keyboard{}) {
 		v.keyboard = self.GetKeyboard()
-		v.keyboard.SetListener(wl.KeyboardListener{Key: v.onKey, RepeatInfo: v.onRepeatInfo}, nil)
+		v.keyboard.SetListener(wl.KeyboardListener{Leave: v.onKeyboardLeave, Key: v.onKey, RepeatInfo: v.onRepeatInfo}, nil)
 	}
 
 	if caps&wl.SeatCapabilityPointer != 0 && v.pointer == (wl.Pointer{}) {
@@ -570,9 +570,18 @@ func (v *viewWayland) onKey(_ any, _ wl.Keyboard, _, _, key uint32, state wl.Key
 	return nil
 }
 
+func (v *viewWayland) onKeyboardLeave(_ any, _ wl.Keyboard, _ uint32, _ wl.Surface) error {
+	v.repeatKey = 0
+
+	return nil
+}
+
 func (v *viewWayland) onRepeatInfo(_ any, _ wl.Keyboard, rate, delay int32) error {
 	v.repeatRate = rate
 	v.repeatDelay = delay
+	if rate <= 0 {
+		v.repeatKey = 0
+	}
 
 	return nil
 }
