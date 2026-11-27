@@ -3,11 +3,11 @@ module github.com/gen2brain/iv
 go 1.26.4
 
 require (
-	codeberg.org/tesselslate/wl v0.4.26
-	codeberg.org/tesselslate/wl-protocols v0.4.49
 	github.com/NeowayLabs/drm v0.0.0-20190824133025-4939fc0ad345
 	github.com/ebitengine/purego v0.11.3
 	github.com/gen2brain/shm v0.2.2
+	github.com/gen2brain/wl v0.5.26
+	github.com/gen2brain/wl-protocols v0.5.49
 	github.com/holoplot/go-evdev v0.0.0-20260909133534-d873ed210bda
 	github.com/jezek/xgb v1.3.1
 	github.com/pbnjay/pixfont v0.0.0-20200714042608-33b744692567

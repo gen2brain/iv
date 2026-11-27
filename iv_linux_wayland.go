@@ -5,15 +5,16 @@ package iv
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"time"
 
-	"codeberg.org/tesselslate/wl"
-	"codeberg.org/tesselslate/wl-protocols/wp"
-	"codeberg.org/tesselslate/wl-protocols/xdg"
-	"codeberg.org/tesselslate/wl-protocols/zxdg"
+	"github.com/gen2brain/wl"
+	"github.com/gen2brain/wl-protocols/wp"
+	"github.com/gen2brain/wl-protocols/xdg"
+	"github.com/gen2brain/wl-protocols/zxdg"
 	"golang.org/x/sys/unix"
 
 	"github.com/gen2brain/iv/internal/swizzle"
@@ -93,8 +94,6 @@ type viewWayland struct {
 	running     bool
 	fullscreen  bool
 	maximized   bool
-	beat        bool
-	armed       bool
 	closed      bool
 	closedFired bool
 	axisAccum   int32
@@ -289,12 +288,6 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 		}
 	}
 
-	_, hasDeadline := ctx.Deadline()
-	v.beat = hasDeadline || v.repeatKey != 0
-	if v.beat && v.configured {
-		v.armFrame()
-	}
-
 	if v.running {
 		return nil
 	}
@@ -302,7 +295,6 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 	v.running = true
 	defer func() {
 		v.running = false
-		v.beat = false
 	}()
 
 	for {
@@ -310,8 +302,8 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 			return nil
 		}
 
-		if err := v.display.Dispatch(); err != nil {
-			if v.closed {
+		if err := v.dispatch(ctx); err != nil {
+			if v.closed || ctx.Err() != nil {
 				return nil
 			}
 			return err
@@ -323,37 +315,27 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 
 		v.fireRepeat()
 
-		v.beat = hasDeadline || v.repeatKey != 0
-		if v.beat && v.configured {
-			v.armFrame()
-		}
-
 		if err := v.display.Flush(); err != nil {
 			return err
 		}
 	}
 }
 
-// armFrame requests a single frame callback to sustain the ctx-deadline heartbeat; idempotent while one is pending.
-func (v *viewWayland) armFrame() {
-	if v.armed {
-		return
+// dispatch waits for compositor events until ctx is done or the next key repeat is due.
+func (v *viewWayland) dispatch(ctx context.Context) error {
+	if v.repeatKey == 0 || v.keyPressHandler == nil {
+		return v.display.DispatchContext(ctx)
 	}
 
-	v.armed = true
-	cb := v.surface.Frame()
-	cb.SetListener(wl.CallbackListener{Done: v.onFrame}, nil)
-	v.surface.Commit()
-}
+	rctx, cancel := context.WithDeadline(ctx, v.repeatNext)
+	defer cancel()
 
-func (v *viewWayland) onFrame(_ any, _ wl.Callback, _ uint32) error {
-	v.armed = false
-	if v.beat && !v.closed && v.configured {
-		v.surface.DamageBuffer(0, 0, 1, 1)
-		v.armFrame()
+	err := v.display.DispatchContext(rctx)
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		return nil
 	}
 
-	return nil
+	return err
 }
 
 func (v *viewWayland) render() error {
@@ -951,7 +933,6 @@ func (v *viewWayland) Close() error {
 	}
 
 	v.running = false
-	v.beat = false
 
 	if v.keyboard != (wl.Keyboard{}) {
 		v.keyboard.Release()
