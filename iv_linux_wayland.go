@@ -16,8 +16,6 @@ import (
 	"github.com/gen2brain/wl-protocols/xdg"
 	"github.com/gen2brain/wl-protocols/zxdg"
 	"golang.org/x/sys/unix"
-
-	"github.com/gen2brain/iv/internal/swizzle"
 )
 
 const nbuf = 4
@@ -353,8 +351,11 @@ func (v *viewWayland) render() error {
 		return nil
 	}
 
-	v.fill(b.data)
-	v.blit(b.data, w)
+	ib := v.image.Bounds()
+	r := placeImage(w, h, v.contentTop(), ib.Dx(), ib.Dy())
+
+	fillAround(b.data, w, h, r, v.bgPixel())
+	blitImage(b.data, w, r, v.image, !v.useXBGR)
 	if v.hasTitleBar() {
 		v.drawWindowBar(b.data, w)
 	}
@@ -369,52 +370,12 @@ func (v *viewWayland) render() error {
 	return v.display.Flush()
 }
 
-func (v *viewWayland) fill(data []byte) {
-	var px [4]byte
+func (v *viewWayland) bgPixel() [4]byte {
 	if v.useXBGR {
-		px = [4]byte{v.bg.R, v.bg.G, v.bg.B, 0xff}
-	} else {
-		px = [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
+		return [4]byte{v.bg.R, v.bg.G, v.bg.B, 0xff}
 	}
 
-	copy(data[0:4], px[:])
-	for f := 4; f < len(data); f *= 2 {
-		copy(data[f:], data[:f])
-	}
-}
-
-func (v *viewWayland) blit(data []byte, w int) {
-	b := v.image.Bounds()
-	iw, ih := b.Dx(), b.Dy()
-
-	top := v.contentTop()
-	dx := (w - iw) / 2
-	dy := top + (v.contentHeight()-ih)/2
-	if dx < 0 {
-		dx = 0
-	}
-	if dy < top {
-		dy = top
-	}
-
-	cols, rows := iw, ih
-	if dx+cols > w {
-		cols = w - dx
-	}
-	if dy+rows > v.winHeight {
-		rows = v.winHeight - dy
-	}
-
-	dStride := w * 4
-	for y := 0; y < rows; y++ {
-		so := y * v.image.Stride
-		do := (dy+y)*dStride + dx*4
-		row := data[do : do+cols*4]
-		copy(row, v.image.Pix[so:so+cols*4])
-		if !v.useXBGR {
-			_ = swizzle.BGRA(row)
-		}
-	}
+	return [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
 }
 
 func (v *viewWayland) setCSD(csd bool) {
@@ -977,7 +938,7 @@ func (v *viewWayland) Clear() {
 	}
 
 	v.image = nil
-	v.fill(b.data)
+	fillPixels(b.data, v.bgPixel())
 
 	b.busy = true
 	v.current = b

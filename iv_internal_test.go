@@ -71,3 +71,69 @@ func TestImageToRGBASubImage(t *testing.T) {
 		t.Errorf("pixel (0,0) = %d,%d,%d, want 3,4,7 (parent 3,4)", r>>8, g>>8, b>>8)
 	}
 }
+
+func TestPlaceImage(t *testing.T) {
+	cases := []struct {
+		w, h, top, iw, ih int
+		want              image.Rectangle
+	}{
+		{100, 80, 0, 40, 20, image.Rect(30, 30, 70, 50)},
+		{100, 80, 0, 100, 80, image.Rect(0, 0, 100, 80)},
+		{100, 80, 0, 300, 200, image.Rect(0, 0, 100, 80)},
+		{100, 80, 20, 40, 20, image.Rect(30, 40, 70, 60)},
+		{100, 80, 20, 40, 100, image.Rect(30, 20, 70, 80)},
+		{101, 81, 0, 40, 20, image.Rect(30, 30, 70, 50)},
+	}
+
+	for _, c := range cases {
+		if got := placeImage(c.w, c.h, c.top, c.iw, c.ih); got != c.want {
+			t.Errorf("placeImage(%d,%d,%d,%d,%d) = %v, want %v", c.w, c.h, c.top, c.iw, c.ih, got, c.want)
+		}
+	}
+}
+
+func TestComposeFrame(t *testing.T) {
+	bg := [4]byte{1, 2, 3, 0xff}
+
+	for _, c := range []struct{ w, h, top, iw, ih int }{
+		{64, 48, 0, 20, 10},
+		{64, 48, 0, 64, 48},
+		{64, 48, 0, 100, 100},
+		{64, 48, 12, 30, 30},
+		{63, 47, 0, 1, 1},
+		{64, 48, 0, 0, 0},
+	} {
+		for _, bgra := range []bool{false, true} {
+			src := image.NewRGBA(image.Rect(0, 0, c.iw, c.ih))
+			for i := range src.Pix {
+				src.Pix[i] = byte(i*13 + i/4)
+			}
+
+			data := make([]byte, c.w*c.h*4)
+			for i := range data {
+				data[i] = 0x55
+			}
+
+			r := placeImage(c.w, c.h, c.top, c.iw, c.ih)
+			fillAround(data, c.w, c.h, r, bg)
+			blitImage(data, c.w, r, src, bgra)
+
+			for y := 0; y < c.h; y++ {
+				for x := 0; x < c.w; x++ {
+					got := [4]byte(data[(y*c.w+x)*4:])
+					want := bg
+					if image.Pt(x, y).In(r) {
+						s := src.Pix[(y-r.Min.Y)*src.Stride+(x-r.Min.X)*4:]
+						want = [4]byte{s[0], s[1], s[2], s[3]}
+						if bgra {
+							want[0], want[2] = want[2], want[0]
+						}
+					}
+					if got != want {
+						t.Fatalf("%+v bgra=%v: pixel %d,%d = %v, want %v", c, bgra, x, y, got, want)
+					}
+				}
+			}
+		}
+	}
+}

@@ -17,8 +17,6 @@ import (
 	"github.com/jezek/xgb/xproto"
 
 	"github.com/gen2brain/shm"
-
-	"github.com/gen2brain/iv/internal/swizzle"
 )
 
 type viewX11 struct {
@@ -586,7 +584,7 @@ func (v *viewX11) Clear() {
 		return
 	}
 
-	v.fill(v.shmData)
+	fillPixels(v.shmData, v.bgPixel())
 	v.imageShmPut()
 }
 
@@ -696,48 +694,16 @@ func (v *viewX11) imageDestroy() error {
 }
 
 func (v *viewX11) compose(data []byte, img image.Image) {
-	v.fill(data)
-	v.blit(data, imageToRGBA(img))
-}
-
-func (v *viewX11) fill(data []byte) {
-	px := [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
-
-	copy(data[0:4], px[:])
-	for f := 4; f < len(data); f *= 2 {
-		copy(data[f:], data[:f])
-	}
-}
-
-func (v *viewX11) blit(data []byte, src *image.RGBA) {
+	src := imageToRGBA(img)
 	b := src.Bounds()
-	iw, ih := b.Dx(), b.Dy()
+	r := placeImage(v.bufW, v.bufH, 0, b.Dx(), b.Dy())
 
-	dx := (v.bufW - iw) / 2
-	dy := (v.bufH - ih) / 2
-	if dx < 0 {
-		dx = 0
-	}
-	if dy < 0 {
-		dy = 0
-	}
+	fillAround(data, v.bufW, v.bufH, r, v.bgPixel())
+	blitImage(data, v.bufW, r, src, true)
+}
 
-	cols, rows := iw, ih
-	if dx+cols > v.bufW {
-		cols = v.bufW - dx
-	}
-	if dy+rows > v.bufH {
-		rows = v.bufH - dy
-	}
-
-	dStride := v.bufW * 4
-	for y := 0; y < rows; y++ {
-		so := y * src.Stride
-		do := (dy+y)*dStride + dx*4
-		row := data[do : do+cols*4]
-		copy(row, src.Pix[so:so+cols*4])
-		_ = swizzle.BGRA(row)
-	}
+func (v *viewX11) bgPixel() [4]byte {
+	return [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
 }
 
 func (v *viewX11) imageShmPut() {

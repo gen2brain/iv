@@ -8,6 +8,8 @@ import (
 	"image/color"
 	"image/draw"
 	"runtime"
+
+	"github.com/gen2brain/iv/internal/swizzle"
 )
 
 // Cursor is a window cursor shape. Backends map each to the closest native cursor.
@@ -151,6 +153,59 @@ func imageToRGBA(src image.Image) *image.RGBA {
 	draw.Draw(dst, dst.Bounds(), src, b.Min, draw.Src)
 
 	return dst
+}
+
+// placeImage centers an iw x ih image in the area from row top to h of a w-wide buffer, clipped to it.
+func placeImage(w, h, top, iw, ih int) image.Rectangle {
+	dx := max((w-iw)/2, 0)
+	dy := max(top+(h-top-ih)/2, top)
+
+	return image.Rect(dx, dy, min(dx+iw, w), min(dy+ih, h))
+}
+
+// blitImage copies src into r of a w-pixel-wide 32-bit buffer, swapping red and blue when bgra is set.
+func blitImage(dst []byte, w int, r image.Rectangle, src *image.RGBA, bgra bool) {
+	n := r.Dx() * 4
+	for y := 0; y < r.Dy(); y++ {
+		so := y * src.Stride
+		do := (r.Min.Y+y)*w*4 + r.Min.X*4
+		row := dst[do : do+n]
+		copy(row, src.Pix[so:so+n])
+		if bgra {
+			_ = swizzle.BGRA(row)
+		}
+	}
+}
+
+// fillPixels fills a 32-bit buffer with px.
+func fillPixels(data []byte, px [4]byte) {
+	if len(data) == 0 {
+		return
+	}
+
+	copy(data, px[:])
+	for f := 4; f < len(data); f *= 2 {
+		copy(data[f:], data[:f])
+	}
+}
+
+// fillAround fills a w x h 32-bit buffer with px everywhere outside r.
+func fillAround(data []byte, w, h int, r image.Rectangle, px [4]byte) {
+	stride := w * 4
+	if r.Empty() {
+		fillPixels(data[:h*stride], px)
+		return
+	}
+
+	fillPixels(data[:r.Min.Y*stride], px)
+	fillPixels(data[r.Max.Y*stride:h*stride], px)
+
+	left, right := r.Min.X*4, r.Max.X*4
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		row := data[y*stride : (y+1)*stride]
+		fillPixels(row[:left], px)
+		fillPixels(row[right:], px)
+	}
 }
 
 func parseHexColor(s string) (c color.RGBA, err error) {

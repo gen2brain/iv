@@ -418,8 +418,11 @@ func (v *viewDRM) SetTitle(title string) error {
 func (v *viewDRM) render(ms *mset, src *image.RGBA) {
 	w, h := int(ms.mode.Width), int(ms.mode.Height)
 
-	v.fill(ms.back)
-	v.blit(ms.back, w, h, src)
+	b := src.Bounds()
+	r := placeImage(w, h, 0, b.Dx(), b.Dy())
+
+	fillAround(ms.back, w, h, r, v.bgPixel())
+	blitImage(ms.back, w, r, src, true)
 
 	if v.title != "" {
 		c := &wlCanvas{data: ms.back, stride: w * 4, w: w, h: h}
@@ -429,44 +432,8 @@ func (v *viewDRM) render(ms *mset, src *image.RGBA) {
 	v.present(ms, w, h)
 }
 
-func (v *viewDRM) fill(data []byte) {
-	px := [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
-
-	copy(data[0:4], px[:])
-	for f := 4; f < len(data); f *= 2 {
-		copy(data[f:], data[:f])
-	}
-}
-
-func (v *viewDRM) blit(data []byte, w, h int, src *image.RGBA) {
-	b := src.Bounds()
-	iw, ih := b.Dx(), b.Dy()
-
-	dx := (w - iw) / 2
-	dy := (h - ih) / 2
-	if dx < 0 {
-		dx = 0
-	}
-	if dy < 0 {
-		dy = 0
-	}
-
-	cols, rows := iw, ih
-	if dx+cols > w {
-		cols = w - dx
-	}
-	if dy+rows > h {
-		rows = h - dy
-	}
-
-	stride := w * 4
-	for y := 0; y < rows; y++ {
-		so := y * src.Stride
-		do := (dy+y)*stride + dx*4
-		row := data[do : do+cols*4]
-		copy(row, src.Pix[so:so+cols*4])
-		_ = swizzle.BGRA(row)
-	}
+func (v *viewDRM) bgPixel() [4]byte {
+	return [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
 }
 
 func (v *viewDRM) present(ms *mset, w, h int) {
@@ -560,7 +527,7 @@ func (v *viewDRM) Close() error {
 func (v *viewDRM) Clear() {
 	for j := range v.msets {
 		ms := &v.msets[j]
-		v.fill(ms.back)
+		fillPixels(ms.back, v.bgPixel())
 		v.present(ms, int(ms.mode.Width), int(ms.mode.Height))
 	}
 }
