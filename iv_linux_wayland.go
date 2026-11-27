@@ -90,6 +90,8 @@ type viewWayland struct {
 
 	configured  bool
 	running     bool
+	frameWait   bool
+	frameCb     bool
 	fullscreen  bool
 	maximized   bool
 	closed      bool
@@ -275,6 +277,17 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 		}
 	}
 
+	return v.show(ctx, img, nil)
+}
+
+// Present draws img and waits until the compositor has shown it or ctx is done.
+func (v *viewWayland) Present(ctx context.Context, img image.Image) error {
+	v.frameWait = true
+
+	return v.show(ctx, img, func() bool { return !v.frameWait })
+}
+
+func (v *viewWayland) show(ctx context.Context, img image.Image, done func() bool) error {
 	b := img.Bounds()
 	v.imgWidth = b.Dx()
 	v.imgHeight = b.Dy()
@@ -293,10 +306,11 @@ func (v *viewWayland) Display(ctx context.Context, img image.Image, args ...any)
 	v.running = true
 	defer func() {
 		v.running = false
+		v.frameWait = false
 	}()
 
 	for {
-		if ctx.Err() != nil || v.closed {
+		if ctx.Err() != nil || v.closed || (done != nil && done()) {
 			return nil
 		}
 
@@ -365,9 +379,21 @@ func (v *viewWayland) render() error {
 
 	v.surface.Attach(b.wl, 0, 0)
 	v.surface.DamageBuffer(0, 0, int32(w), int32(h))
+	if v.frameWait && !v.frameCb {
+		v.frameCb = true
+		cb := v.surface.Frame()
+		cb.SetListener(wl.CallbackListener{Done: v.onFrame}, nil)
+	}
 	v.surface.Commit()
 
 	return v.display.Flush()
+}
+
+func (v *viewWayland) onFrame(_ any, _ wl.Callback, _ uint32) error {
+	v.frameCb = false
+	v.frameWait = false
+
+	return nil
 }
 
 func (v *viewWayland) bgPixel() [4]byte {

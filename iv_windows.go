@@ -19,11 +19,15 @@ import (
 var (
 	_gdi32            *windows.LazyDLL
 	_createSolidBrush *windows.LazyProc
+	_dwmapi           *windows.LazyDLL
+	_dwmFlush         *windows.LazyProc
 )
 
 func init() {
 	_gdi32 = windows.NewLazySystemDLL("gdi32.dll")
 	_createSolidBrush = _gdi32.NewProc("CreateSolidBrush")
+	_dwmapi = windows.NewLazySystemDLL("dwmapi.dll")
+	_dwmFlush = _dwmapi.NewProc("DwmFlush")
 }
 
 // View type.
@@ -171,6 +175,41 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 		}
 	}
 
+	if err := v.paint(img); err != nil {
+		return err
+	}
+
+	var msg win.MSG
+	for v.hwnd != 0 && win.GetMessage(&msg, v.hwnd, 0, 0) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+
+		win.DispatchMessage(&msg)
+	}
+
+	return nil
+}
+
+// Present displays image and waits until it is on screen at a vertical blank, or ctx is done.
+func (v *View) Present(ctx context.Context, img image.Image) error {
+	if err := v.paint(img); err != nil {
+		return err
+	}
+
+	if ctx.Err() == nil {
+		_, _, _ = _dwmFlush.Call()
+	}
+
+	var msg win.MSG
+	for v.hwnd != 0 && win.PeekMessage(&msg, v.hwnd, 0, 0, win.PM_REMOVE) {
+		win.DispatchMessage(&msg)
+	}
+
+	return nil
+}
+
+func (v *View) paint(img image.Image) error {
 	hB, err := hBitmapFromImage(img, 96)
 	if err != nil {
 		return fmt.Errorf("cannot get bitmap from image: %w", err)
@@ -187,15 +226,6 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 
 	win.InvalidateRect(v.hwnd, nil, false)
 	win.UpdateWindow(v.hwnd)
-
-	var msg win.MSG
-	for v.hwnd != 0 && win.GetMessage(&msg, v.hwnd, 0, 0) > 0 {
-		if err := ctx.Err(); err != nil {
-			return nil
-		}
-
-		win.DispatchMessage(&msg)
-	}
 
 	return nil
 }

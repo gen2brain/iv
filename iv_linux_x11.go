@@ -10,9 +10,12 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/randr"
 	mshm "github.com/jezek/xgb/shm"
 	"github.com/jezek/xgb/xproto"
 
@@ -57,6 +60,30 @@ type viewX11 struct {
 
 	fullscreen bool
 	running    bool
+
+	last    image.Image
+	shmBusy bool
+
+	syncOpcode       byte
+	syncBasic        uint32
+	syncExt          uint32
+	syncValue        int64
+	syncPending      int64
+	syncPendingExt   bool
+	syncConfigure    int64
+	syncConfigureExt bool
+
+	atomProtocols    xproto.Atom
+	atomSyncRequest  xproto.Atom
+	atomFrameDrawn   xproto.Atom
+	atomFrameTimings xproto.Atom
+	frameDrawn       bool
+	frameTimings     bool
+	frameWait        int64
+
+	refresh time.Duration
+	tickAt  time.Time
+	ticked  bool
 
 	connected atomic.Bool
 }
@@ -141,6 +168,8 @@ func newX11(opts Options) (*viewX11, error) {
 		return v, fmt.Errorf("cannot set title: %w", err)
 	}
 
+	v.initFrameSync()
+
 	v.events = make(chan xgb.Event)
 
 	go func(conn *xgb.Conn) {
@@ -201,6 +230,36 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 	event := xproto.ExposeEvent{Window: v.window, Width: uint16(v.winWidth), Height: uint16(v.winHeight)}
 	xproto.SendEvent(v.xc, false, v.window, xproto.EventMaskExposure, string(event.Bytes()))
 
+	v.last = img
+
+	return v.run(ctx, img, nil, nil)
+}
+
+// Present draws img and waits until the compositor has presented it, or the next refresh tick without frame timings, or ctx is done.
+func (v *viewX11) Present(ctx context.Context, img image.Image) error {
+	if v.useShm {
+		if err := v.ensureBuffer(); err != nil {
+			return fmt.Errorf("cannot create image: %w", err)
+		}
+		v.compose(v.shmData, img)
+	}
+
+	v.last = img
+	v.put(img)
+
+	var wake <-chan time.Time
+	v.ticked = true
+	if v.frameWait == 0 || !v.frameTimings {
+		t := time.NewTimer(v.nextTick())
+		defer t.Stop()
+		wake = t.C
+		v.ticked = false
+	}
+
+	return v.run(ctx, img, func() bool { return v.ticked && v.frameWait == 0 && !v.shmBusy }, wake)
+}
+
+func (v *viewX11) run(ctx context.Context, img image.Image, done func() bool, wake <-chan time.Time) error {
 	if v.running {
 		return nil
 	}
@@ -215,6 +274,9 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-wake:
+			wake = nil
+			v.ticked = true
 		case ev := <-v.events:
 			if ctx.Err() != nil {
 				return nil
@@ -222,6 +284,12 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 
 			switch e := ev.(type) {
 			case xproto.ConfigureNotifyEvent:
+				v.refresh = 0
+				if v.syncPending != 0 {
+					v.syncConfigure, v.syncConfigureExt = v.syncPending, v.syncPendingExt
+					v.syncPending = 0
+				}
+
 				if int(e.Width) != v.winWidth || int(e.Height) != v.winHeight {
 					v.winWidth = int(e.Width)
 					v.winHeight = int(e.Height)
@@ -229,6 +297,10 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 					if v.resizeHandler != nil {
 						v.resizeHandler(v.winWidth, v.winHeight)
 					}
+				}
+
+				if v.syncConfigure != 0 && v.last != nil {
+					v.repaint()
 				}
 			case xproto.KeyPressEvent:
 				if v.keyPressHandler != nil {
@@ -270,12 +342,12 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 				}
 			case xproto.ExposeEvent:
 				if e.Count == 0 {
-					if v.useShm {
-						v.imageShmPut()
-					} else {
-						v.imagePut(img)
-					}
+					v.put(img)
 				}
+			case xproto.ClientMessageEvent:
+				v.clientMessage(e)
+			case mshm.CompletionEvent:
+				v.shmBusy = false
 			case xproto.DestroyNotifyEvent:
 				if v.closedHandler != nil {
 					v.closedHandler()
@@ -283,6 +355,10 @@ func (v *viewX11) Display(ctx context.Context, img image.Image, args ...any) err
 
 				return nil
 			}
+		}
+
+		if done != nil && done() {
+			return nil
 		}
 	}
 }
@@ -712,7 +788,239 @@ func (v *viewX11) imageShmPut() {
 		0, 0, // SrcX, SrcY,
 		uint16(v.bufW), uint16(v.bufH), // SrcWidth, SrcHeight,
 		0, 0, // DstX, DstY,
-		v.screen.RootDepth, xproto.ImageFormatZPixmap, 0, v.shmSeg, 0)
+		v.screen.RootDepth, xproto.ImageFormatZPixmap, 1, v.shmSeg, 0)
+	v.shmBusy = true
+}
+
+func (v *viewX11) put(img image.Image) {
+	v.beginFrame()
+	if v.useShm {
+		v.imageShmPut()
+	} else {
+		v.imagePut(img)
+	}
+	v.endFrame()
+}
+
+func (v *viewX11) repaint() {
+	if v.useShm {
+		if err := v.ensureBuffer(); err != nil {
+			return
+		}
+		v.compose(v.shmData, v.last)
+	}
+	v.put(v.last)
+}
+
+func (v *viewX11) beginFrame() {
+	if v.syncExt == 0 {
+		return
+	}
+
+	if v.syncConfigure != 0 && v.syncConfigureExt {
+		v.syncValue = v.syncConfigure + v.syncConfigure%2
+		v.syncConfigure = 0
+	}
+
+	if v.syncValue%2 == 0 {
+		v.syncValue++
+		v.setCounter(v.syncExt, v.syncValue)
+	}
+}
+
+func (v *viewX11) endFrame() {
+	if v.syncExt == 0 {
+		return
+	}
+
+	if v.syncValue%2 == 1 {
+		v.syncValue++
+		v.setCounter(v.syncExt, v.syncValue)
+		if v.frameDrawn {
+			v.frameWait = v.syncValue
+		}
+	}
+
+	if v.syncConfigure != 0 && !v.syncConfigureExt {
+		v.setCounter(v.syncBasic, v.syncConfigure)
+		v.syncConfigure = 0
+	}
+}
+
+func (v *viewX11) clientMessage(e xproto.ClientMessageEvent) {
+	d := e.Data.Data32
+	switch {
+	case e.Type == v.atomFrameDrawn && v.atomFrameDrawn != 0 && !v.frameTimings,
+		e.Type == v.atomFrameTimings && v.atomFrameTimings != 0 && v.frameTimings:
+		if serial := int64(d[1])<<32 | int64(d[0]); v.frameWait != 0 && serial >= v.frameWait {
+			v.frameWait = 0
+		}
+	case e.Type == v.atomProtocols && v.atomSyncRequest != 0 && xproto.Atom(d[0]) == v.atomSyncRequest:
+		v.syncPending = int64(d[3])<<32 | int64(d[2])
+		v.syncPendingExt = d[4] != 0
+	}
+}
+
+// initFrameSync sets up _NET_WM_SYNC_REQUEST counters and detects _NET_WM_FRAME_DRAWN and _NET_WM_FRAME_TIMINGS support.
+func (v *viewX11) initFrameSync() {
+	ext, err := xproto.QueryExtension(v.xc, 4, "SYNC").Reply()
+	if err != nil || !ext.Present {
+		return
+	}
+	v.syncOpcode = ext.MajorOpcode
+
+	buf := make([]byte, 8)
+	buf[0], buf[1] = v.syncOpcode, 0
+	xgb.Put16(buf[2:], 2)
+	buf[4], buf[5] = 3, 1
+	cookie := v.xc.NewCookie(true, true)
+	v.xc.NewRequest(buf, cookie)
+	if _, err := cookie.Reply(); err != nil {
+		return
+	}
+
+	for _, c := range []*uint32{&v.syncBasic, &v.syncExt} {
+		id, err := v.xc.NewId()
+		if err != nil {
+			return
+		}
+		buf := v.counterRequest(2, id, 0)
+		v.xc.NewRequest(buf, v.xc.NewCookie(false, false))
+		*c = id
+	}
+
+	counter, err1 := v.atom("_NET_WM_SYNC_REQUEST_COUNTER")
+	v.atomProtocols, _ = v.atom("WM_PROTOCOLS")
+	v.atomSyncRequest, _ = v.atom("_NET_WM_SYNC_REQUEST")
+	v.atomFrameDrawn, _ = v.atom("_NET_WM_FRAME_DRAWN")
+	v.atomFrameTimings, _ = v.atom("_NET_WM_FRAME_TIMINGS")
+	supported, err2 := v.atom("_NET_SUPPORTED")
+	if err1 != nil || err2 != nil || v.atomProtocols == 0 || v.atomSyncRequest == 0 {
+		v.syncExt = 0
+		return
+	}
+
+	counters := make([]byte, 8)
+	xgb.Put32(counters, v.syncBasic)
+	xgb.Put32(counters[4:], v.syncExt)
+	xproto.ChangeProperty(v.xc, xproto.PropModeReplace, v.window, counter, xproto.AtomCardinal, 32, 2, counters)
+
+	protocols := make([]byte, 4)
+	xgb.Put32(protocols, uint32(v.atomSyncRequest))
+	xproto.ChangeProperty(v.xc, xproto.PropModeAppend, v.window, v.atomProtocols, xproto.AtomAtom, 32, 1, protocols)
+
+	reply, err := xproto.GetProperty(v.xc, false, v.screen.Root, supported, xproto.AtomAtom, 0, 4096).Reply()
+	if err == nil && reply.Format == 32 && v.atomFrameDrawn != 0 {
+		for i := 0; i+4 <= len(reply.Value); i += 4 {
+			switch xproto.Atom(xgb.Get32(reply.Value[i:])) {
+			case v.atomFrameDrawn:
+				v.frameDrawn = true
+			case v.atomFrameTimings:
+				v.frameTimings = v.atomFrameTimings != 0
+			}
+		}
+	}
+}
+
+func (v *viewX11) counterRequest(minor byte, counter uint32, value int64) []byte {
+	buf := make([]byte, 16)
+	buf[0], buf[1] = v.syncOpcode, minor
+	xgb.Put16(buf[2:], 4)
+	xgb.Put32(buf[4:], counter)
+	xgb.Put32(buf[8:], uint32(value>>32))
+	xgb.Put32(buf[12:], uint32(value))
+
+	return buf
+}
+
+func (v *viewX11) setCounter(counter uint32, value int64) {
+	v.xc.NewRequest(v.counterRequest(3, counter, value), v.xc.NewCookie(false, false))
+}
+
+func (v *viewX11) atom(name string) (xproto.Atom, error) {
+	reply, err := xproto.InternAtom(v.xc, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return 0, err
+	}
+
+	return reply.Atom, nil
+}
+
+// nextTick returns the time until the next refresh-rate tick.
+func (v *viewX11) nextTick() time.Duration {
+	if v.refresh == 0 {
+		v.refresh = v.refreshInterval()
+	}
+
+	now := time.Now()
+	if v.tickAt.Before(now.Add(-v.refresh)) {
+		v.tickAt = now
+	}
+	for !v.tickAt.After(now) {
+		v.tickAt = v.tickAt.Add(v.refresh)
+	}
+
+	return v.tickAt.Sub(now)
+}
+
+// refreshInterval returns the frame period of the monitor under the window center, from RandR.
+func (v *viewX11) refreshInterval() time.Duration {
+	const fallback = time.Second / 60
+
+	if err := randr.Init(v.xc); err != nil {
+		return fallback
+	}
+
+	res, err := randr.GetScreenResourcesCurrent(v.xc, v.window).Reply()
+	if err != nil {
+		return fallback
+	}
+
+	pos, err := xproto.TranslateCoordinates(v.xc, v.window, v.screen.Root, 0, 0).Reply()
+	if err != nil {
+		return fallback
+	}
+	cx, cy := int(pos.DstX)+v.winWidth/2, int(pos.DstY)+v.winHeight/2
+
+	period := time.Duration(0)
+	for _, crtc := range res.Crtcs {
+		info, err := randr.GetCrtcInfo(v.xc, crtc, res.ConfigTimestamp).Reply()
+		if err != nil || info.Mode == 0 {
+			continue
+		}
+
+		i := slices.IndexFunc(res.Modes, func(m randr.ModeInfo) bool { return m.Id == uint32(info.Mode) })
+		if i < 0 {
+			continue
+		}
+
+		m := res.Modes[i]
+		vtotal := int64(m.Vtotal)
+		if m.ModeFlags&randr.ModeFlagDoubleScan != 0 {
+			vtotal *= 2
+		}
+		if m.ModeFlags&randr.ModeFlagInterlace != 0 {
+			vtotal /= 2
+		}
+		if m.DotClock == 0 || m.Htotal == 0 || vtotal == 0 {
+			continue
+		}
+
+		p := time.Duration(int64(m.Htotal) * vtotal * int64(time.Second) / int64(m.DotClock))
+		inside := cx >= int(info.X) && cx < int(info.X)+int(info.Width) && cy >= int(info.Y) && cy < int(info.Y)+int(info.Height)
+		if inside || period == 0 {
+			period = p
+		}
+		if inside {
+			break
+		}
+	}
+
+	if period <= 0 {
+		return fallback
+	}
+
+	return period
 }
 
 func (v *viewX11) imagePut(img image.Image) {

@@ -3,12 +3,17 @@
 package iv
 
 import (
+	"encoding/binary"
 	"image"
 	"image/color"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/NeowayLabs/drm/mode"
 	"github.com/gen2brain/wl"
+	"github.com/jezek/xgb/xproto"
 	"github.com/pbnjay/pixfont"
 )
 
@@ -104,5 +109,94 @@ func TestWaylandKeyRepeatStops(t *testing.T) {
 
 	if presses != 3 {
 		t.Fatalf("presses = %d, want 3", presses)
+	}
+}
+
+func TestDRMFlipEvents(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	v := &viewDRM{dev: r, flips: make(chan uint32, 8)}
+	v.msets = []mset{{mode: &mode.Modeset{Crtc: 41}, flipping: true}, {mode: &mode.Modeset{Crtc: 42}, flipping: true}}
+	go v.readFlips()
+
+	event := func(typ uint32, crtc uint64) []byte {
+		b := make([]byte, 32)
+		binary.NativeEndian.PutUint32(b, typ)
+		binary.NativeEndian.PutUint32(b[4:], 32)
+		binary.NativeEndian.PutUint64(b[8:], crtc)
+		return b
+	}
+
+	buf := append(event(0x01, 41), event(drmEventFlipComplete, 42)...)
+	if _, err := w.Write(append(buf, event(drmEventFlipComplete, 41)...)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []uint32{42, 41} {
+		select {
+		case crtc, ok := <-v.flips:
+			if !ok || crtc != want {
+				t.Fatalf("flip crtc = %d, %v, want %d", crtc, ok, want)
+			}
+			v.flipDone(crtc, ok)
+		case <-time.After(time.Second):
+			t.Fatalf("no flip event for crtc %d", want)
+		}
+	}
+
+	if v.flipping() {
+		t.Fatal("still flipping after both flips completed")
+	}
+
+	v.msets[0].flipping = true
+	w.Close()
+	v.waitFlip(&v.msets[0])
+	if v.msets[0].flipping || !v.msets[0].noFlip {
+		t.Fatalf("after device close: flipping %v noFlip %v, want false true", v.msets[0].flipping, v.msets[0].noFlip)
+	}
+}
+
+func TestX11FrameSyncMessages(t *testing.T) {
+	v := &viewX11{atomProtocols: 10, atomSyncRequest: 11, atomFrameDrawn: 12}
+	msg := func(typ xproto.Atom, d ...uint32) xproto.ClientMessageEvent {
+		data := make([]uint32, 5)
+		copy(data, d)
+		return xproto.ClientMessageEvent{Format: 32, Type: typ, Data: xproto.ClientMessageDataUnionData32New(data)}
+	}
+
+	v.frameWait = 1<<32 | 6
+	v.clientMessage(msg(12, 4, 1))
+	if v.frameWait == 0 {
+		t.Fatal("frame drawn for an older serial cleared the wait")
+	}
+	v.clientMessage(msg(12, 6, 1))
+	if v.frameWait != 0 {
+		t.Fatalf("frameWait = %d after frame drawn for the awaited serial, want 0", v.frameWait)
+	}
+
+	v.atomFrameTimings, v.frameTimings = 13, true
+	v.frameWait = 7
+	v.clientMessage(msg(12, 7, 0))
+	if v.frameWait == 0 {
+		t.Fatal("frame drawn cleared the wait although frame timings are supported")
+	}
+	v.clientMessage(msg(13, 7, 0, 0, 16667))
+	if v.frameWait != 0 {
+		t.Fatalf("frameWait = %d after frame timings for the awaited serial, want 0", v.frameWait)
+	}
+
+	v.clientMessage(msg(10, 11, 0, 8, 2, 1))
+	if v.syncPending != 2<<32|8 || !v.syncPendingExt {
+		t.Fatalf("sync request: pending %d ext %v, want %d true", v.syncPending, v.syncPendingExt, int64(2<<32|8))
+	}
+
+	v.syncPending = 0
+	v.clientMessage(msg(10, 99, 0, 8, 2, 1))
+	if v.syncPending != 0 {
+		t.Fatal("WM_PROTOCOLS message for another protocol was taken as a sync request")
 	}
 }

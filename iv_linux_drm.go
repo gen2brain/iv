@@ -4,6 +4,7 @@ package iv
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"slices"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/NeowayLabs/drm"
@@ -42,6 +44,10 @@ type viewDRM struct {
 
 	events chan *evdev.InputEvent
 	inputs []*evdev.InputDevice
+	flips  chan uint32
+
+	refresh time.Duration
+	tickAt  time.Time
 
 	mouseX int
 	mouseY int
@@ -89,6 +95,21 @@ type drmModeFBDirty struct {
 
 var ioctlModeFBDirty = ioctl.NewCode(ioctl.Write|ioctl.Read, uint16(unsafe.Sizeof(drmModeFBDirty{})), drm.IOCTLBase, 0xB1)
 
+type drmModeCrtcPageFlip struct {
+	crtcID   uint32
+	fbID     uint32
+	flags    uint32
+	reserved uint32
+	userData uint64
+}
+
+var ioctlModePageFlip = ioctl.NewCode(ioctl.Write|ioctl.Read, uint16(unsafe.Sizeof(drmModeCrtcPageFlip{})), drm.IOCTLBase, 0xB0)
+
+const (
+	drmModePageFlipEvent = 0x01
+	drmEventFlipComplete = 0x02
+)
+
 func newDRM(opts Options) (*viewDRM, error) {
 	v := &viewDRM{}
 	var err error
@@ -119,6 +140,9 @@ func newDRM(opts Options) (*viewDRM, error) {
 	v.mouseY = h / 2
 
 	v.cursorInit()
+
+	v.flips = make(chan uint32, 8)
+	go v.readFlips()
 
 	v.events = make(chan *evdev.InputEvent)
 
@@ -186,16 +210,49 @@ func (v *viewDRM) Display(ctx context.Context, img image.Image, args ...any) err
 		}
 	}
 
+	v.show(img)
+
+	return v.run(ctx, nil, nil, nil)
+}
+
+// Present draws img and waits until the page flip to it has completed, or ctx is done.
+func (v *viewDRM) Present(ctx context.Context, img image.Image) error {
+	v.show(img)
+
+	var wake <-chan time.Time
+	ticked := true
+	if !v.flipping() {
+		t := time.NewTimer(v.nextTick())
+		defer t.Stop()
+		wake = t.C
+		ticked = false
+	}
+
+	return v.run(ctx, func() bool { return ticked && !v.flipping() }, func() { ticked = true }, wake)
+}
+
+func (v *viewDRM) show(img image.Image) {
 	src := imageToRGBA(img)
 	v.last = src
 	for j := range v.msets {
 		v.render(&v.msets[j], src)
 	}
+}
 
+func (v *viewDRM) run(ctx context.Context, done func() bool, tick func(), wake <-chan time.Time) error {
 	for {
+		if done != nil && done() {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-wake:
+			wake = nil
+			tick()
+		case crtc, ok := <-v.flips:
+			v.flipDone(crtc, ok)
 		case ev := <-v.events:
 			if ctx.Err() != nil {
 				return nil
@@ -264,7 +321,6 @@ func (v *viewDRM) Display(ctx context.Context, img image.Image, args ...any) err
 			}
 		}
 	}
-
 }
 
 func (v *viewDRM) ToggleFullscreen() error {
@@ -436,22 +492,122 @@ func (v *viewDRM) bgPixel() [4]byte {
 	return [4]byte{v.bg.B, v.bg.G, v.bg.R, 0xff}
 }
 
+// present copies the back buffer into the hidden framebuffer and page-flips to it, or into the shown one when flipping is unavailable.
 func (v *viewDRM) present(ms *mset, w, h int) {
-	stride := int(ms.fb.stride)
-	if stride == w*4 {
-		copy(ms.fb.data, ms.back)
-	} else {
-		for y := 0; y < h; y++ {
-			copy(ms.fb.data[y*stride:y*stride+w*4], ms.back[y*w*4:(y+1)*w*4])
+	v.waitFlip(ms)
+
+	if !ms.noFlip {
+		next := 1 - ms.front
+		copyFB(&ms.fbs[next], ms.back, w, h)
+
+		err := v.pageFlip(ms.mode.Crtc, ms.fbs[next].id)
+		if err == nil {
+			ms.front = next
+			ms.flipping = true
+
+			return
+		}
+
+		if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOSYS) || errors.Is(err, unix.EOPNOTSUPP) {
+			ms.noFlip = true
 		}
 	}
 
+	copyFB(&ms.fbs[ms.front], ms.back, w, h)
 	v.dirtyFB(ms)
+}
+
+func copyFB(fb *frameBuffer, back []byte, w, h int) {
+	stride := int(fb.stride)
+	if stride == w*4 {
+		copy(fb.data, back)
+		return
+	}
+
+	for y := 0; y < h; y++ {
+		copy(fb.data[y*stride:y*stride+w*4], back[y*w*4:(y+1)*w*4])
+	}
+}
+
+func (v *viewDRM) pageFlip(crtc, fb uint32) error {
+	c := drmModeCrtcPageFlip{crtcID: crtc, fbID: fb, flags: drmModePageFlipEvent, userData: uint64(crtc)}
+
+	return ioctl.Do(v.dev.Fd(), uintptr(ioctlModePageFlip), uintptr(unsafe.Pointer(&c)))
+}
+
+// waitFlip blocks until the pending page flip of ms has completed.
+func (v *viewDRM) waitFlip(ms *mset) {
+	for ms.flipping {
+		crtc, ok := <-v.flips
+		v.flipDone(crtc, ok)
+	}
+}
+
+func (v *viewDRM) flipDone(crtc uint32, ok bool) {
+	for j := range v.msets {
+		if !ok || v.msets[j].mode.Crtc == crtc {
+			v.msets[j].flipping = false
+		}
+		if !ok {
+			v.msets[j].noFlip = true
+		}
+	}
+}
+
+func (v *viewDRM) flipping() bool {
+	return slices.ContainsFunc(v.msets, func(ms mset) bool { return ms.flipping })
+}
+
+// readFlips forwards page-flip completion events from the DRM device.
+func (v *viewDRM) readFlips() {
+	defer close(v.flips)
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := v.dev.Read(buf)
+		if err != nil {
+			return
+		}
+
+		for off := 0; off+8 <= n; {
+			typ := binary.NativeEndian.Uint32(buf[off:])
+			length := int(binary.NativeEndian.Uint32(buf[off+4:]))
+			if length < 8 || off+length > n {
+				break
+			}
+
+			if typ == drmEventFlipComplete && length >= 16 {
+				v.flips <- uint32(binary.NativeEndian.Uint64(buf[off+8:]))
+			}
+
+			off += length
+		}
+	}
+}
+
+// nextTick returns the time until the next refresh-rate tick.
+func (v *viewDRM) nextTick() time.Duration {
+	if v.refresh == 0 {
+		v.refresh = time.Second / 60
+		if m := v.msets[0].mode.Mode; m.Clock != 0 && m.Htotal != 0 && m.Vtotal != 0 {
+			v.refresh = time.Duration(int64(m.Htotal) * int64(m.Vtotal) * int64(time.Millisecond) / int64(m.Clock))
+		}
+	}
+
+	now := time.Now()
+	if v.tickAt.Before(now.Add(-v.refresh)) {
+		v.tickAt = now
+	}
+	for !v.tickAt.After(now) {
+		v.tickAt = v.tickAt.Add(v.refresh)
+	}
+
+	return v.tickAt.Sub(now)
 }
 
 // dirtyFB notifies the driver the framebuffer changed so a self-refreshing panel (eDP PSR) re-scans it.
 func (v *viewDRM) dirtyFB(ms *mset) {
-	c := drmModeFBDirty{fbID: ms.fb.id}
+	c := drmModeFBDirty{fbID: ms.fbs[ms.front].id}
 	_ = ioctl.Do(v.dev.Fd(), uintptr(ioctlModeFBDirty), uintptr(unsafe.Pointer(&c)))
 }
 
@@ -614,6 +770,9 @@ func (v *viewDRM) msInit() error {
 			return fmt.Errorf("cannot create fb: %w", err)
 		}
 
+		fb2, err := v.fbCreate(mod)
+		noFlip := err != nil
+
 		savedCrtc, err := mode.GetCrtc(v.dev, mod.Crtc)
 		if err != nil {
 			_ = v.fbCleanup()
@@ -630,7 +789,8 @@ func (v *viewDRM) msInit() error {
 
 		v.msets = append(v.msets, mset{
 			mode:      mod,
-			fb:        fb,
+			fbs:       [2]frameBuffer{fb, fb2},
+			noFlip:    noFlip,
 			savedCrtc: savedCrtc,
 			back:      make([]byte, int(mod.Width)*int(mod.Height)*4),
 		})
@@ -698,16 +858,24 @@ func (v *viewDRM) fbCreate(dev *mode.Modeset) (frameBuffer, error) {
 func (v *viewDRM) fbDestroy(ms mset) error {
 	var e error
 
-	if err := unix.Munmap(ms.fb.data); err != nil {
-		e = errors.Join(e, fmt.Errorf("cannot munmap fb data: %w", err))
-	}
+	v.waitFlip(&ms)
 
-	if err := mode.RmFB(v.dev, ms.fb.id); err != nil {
-		e = errors.Join(e, fmt.Errorf("cannot rm fb: %w", err))
-	}
+	for _, fb := range ms.fbs {
+		if fb.data == nil {
+			continue
+		}
 
-	if err := mode.DestroyDumb(v.dev, ms.fb.handle); err != nil {
-		e = errors.Join(e, fmt.Errorf("cannot destroy dumb: %w", err))
+		if err := unix.Munmap(fb.data); err != nil {
+			e = errors.Join(e, fmt.Errorf("cannot munmap fb data: %w", err))
+		}
+
+		if err := mode.RmFB(v.dev, fb.id); err != nil {
+			e = errors.Join(e, fmt.Errorf("cannot rm fb: %w", err))
+		}
+
+		if err := mode.DestroyDumb(v.dev, fb.handle); err != nil {
+			e = errors.Join(e, fmt.Errorf("cannot destroy dumb: %w", err))
+		}
 	}
 
 	if err := mode.SetCrtc(v.dev, ms.savedCrtc.ID, ms.savedCrtc.BufferID, ms.savedCrtc.X, ms.savedCrtc.Y, &ms.mode.Conn, 1, &ms.savedCrtc.Mode); err != nil {
@@ -778,7 +946,10 @@ type frameBuffer struct {
 
 type mset struct {
 	mode      *mode.Modeset
-	fb        frameBuffer
+	fbs       [2]frameBuffer
+	front     int
+	flipping  bool
+	noFlip    bool
 	savedCrtc *mode.Crtc
 	back      []byte
 }

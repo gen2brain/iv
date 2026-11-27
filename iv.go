@@ -34,6 +34,7 @@ const (
 type Viewer interface {
 	Driver() string
 	Display(ctx context.Context, img image.Image, args ...any) error
+	Present(ctx context.Context, img image.Image) error
 	ToggleFullscreen() error
 	Fullscreen() bool
 	Maximize() error

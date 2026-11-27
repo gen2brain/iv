@@ -85,6 +85,11 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 	return v.viewer.Display(ctx, img, args...)
 }
 
+// Present displays image and waits until it is on screen at a vertical blank, or ctx is done.
+func (v *View) Present(ctx context.Context, img image.Image) error {
+	return v.viewer.Present(ctx, img)
+}
+
 // ToggleFullscreen toggles window fullscreen.
 func (v *View) ToggleFullscreen() error {
 	return v.viewer.ToggleFullscreen()

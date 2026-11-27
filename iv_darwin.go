@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"image"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -51,6 +53,8 @@ const (
 	nsEventTypeScrollWheel    = 22
 	nsEventTypeOtherMouseDown = 25
 	nsEventTypeOtherMouseUp   = 26
+
+	nsEventTypeApplicationDefined = 15
 
 	nsEventModifierFlagShift   = 1 << 17
 	nsEventModifierFlagControl = 1 << 18
@@ -112,6 +116,12 @@ var (
 	selInitWithSize          = objc.RegisterName("initWithSize:")
 	selMainScreen            = objc.RegisterName("mainScreen")
 	selWindowWillClose       = objc.RegisterName("windowWillClose:")
+	selScreen                = objc.RegisterName("screen")
+	selDeviceDescription     = objc.RegisterName("deviceDescription")
+	selObjectForKey          = objc.RegisterName("objectForKey:")
+	selUnsignedIntValue      = objc.RegisterName("unsignedIntValue")
+	selOtherEvent            = objc.RegisterName("otherEventWithType:location:modifierFlags:timestamp:windowNumber:context:subtype:data1:data2:")
+	selPostEvent             = objc.RegisterName("postEvent:atStart:")
 	selWindowDidResize       = objc.RegisterName("windowDidResize:")
 )
 
@@ -120,6 +130,123 @@ var (
 	delegateOnce  sync.Once
 	registry      = map[objc.ID]*View{}
 )
+
+var (
+	cvOnce        sync.Once
+	cvErr         error
+	cvCallback    uintptr
+	cvCreate      func(link *uintptr) int32
+	cvSetDisplay  func(link uintptr, display uint32) int32
+	cvSetCallback func(link, callback, ctx uintptr) int32
+	cvStart       func(link uintptr) int32
+	cvStop        func(link uintptr) int32
+	cvRelease     func(link uintptr)
+
+	links    sync.Map
+	linkNext atomic.Uintptr
+)
+
+func loadCoreVideo() error {
+	cvOnce.Do(func() {
+		lib, err := purego.Dlopen("/System/Library/Frameworks/CoreVideo.framework/CoreVideo", purego.RTLD_GLOBAL|purego.RTLD_LAZY)
+		if err != nil {
+			cvErr = err
+			return
+		}
+
+		purego.RegisterLibFunc(&cvCreate, lib, "CVDisplayLinkCreateWithActiveCGDisplays")
+		purego.RegisterLibFunc(&cvSetDisplay, lib, "CVDisplayLinkSetCurrentCGDisplay")
+		purego.RegisterLibFunc(&cvSetCallback, lib, "CVDisplayLinkSetOutputCallback")
+		purego.RegisterLibFunc(&cvStart, lib, "CVDisplayLinkStart")
+		purego.RegisterLibFunc(&cvStop, lib, "CVDisplayLinkStop")
+		purego.RegisterLibFunc(&cvRelease, lib, "CVDisplayLinkRelease")
+
+		cvCallback = purego.NewCallback(displayLinkFired)
+	})
+
+	return cvErr
+}
+
+// displayLinkFired runs on the CoreVideo thread at every vertical blank.
+func displayLinkFired(_, _, _ uintptr, _ uint64, _, ctx uintptr) int32 {
+	if val, ok := links.Load(ctx); ok {
+		v := val.(*View)
+		v.vsync.Add(1)
+		if v.waiting.Load() {
+			v.wake()
+		}
+	}
+
+	return 0
+}
+
+func (v *View) wake() {
+	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selAlloc).Send(selInit)
+	ev := objc.ID(objc.GetClass("NSEvent")).Send(selOtherEvent, uint(nsEventTypeApplicationDefined), NSPoint{}, uint(0), 0.0, 0, objc.ID(0), int16(0), 0, 0)
+	if ev != 0 {
+		v.app.Send(selPostEvent, ev, false)
+	}
+	pool.Send(selDrain)
+}
+
+func (v *View) startDisplayLink() error {
+	if v.link == 0 {
+		if err := loadCoreVideo(); err != nil {
+			return err
+		}
+
+		var link uintptr
+		if r := cvCreate(&link); r != 0 || link == 0 {
+			return fmt.Errorf("cannot create display link: %d", r)
+		}
+
+		v.linkID = linkNext.Add(1)
+		links.Store(v.linkID, v)
+		cvSetCallback(link, cvCallback, v.linkID)
+		v.link = link
+		v.linkDisplay = 0
+
+		if r := cvStart(link); r != 0 {
+			v.stopDisplayLink()
+			return fmt.Errorf("cannot start display link: %d", r)
+		}
+	}
+
+	if id := v.screenNumber(); id != 0 && id != v.linkDisplay {
+		cvSetDisplay(v.link, id)
+		v.linkDisplay = id
+	}
+
+	return nil
+}
+
+func (v *View) stopDisplayLink() {
+	if v.link == 0 {
+		return
+	}
+
+	cvStop(v.link)
+	cvRelease(v.link)
+	links.Delete(v.linkID)
+	v.link = 0
+}
+
+func (v *View) screenNumber() uint32 {
+	screen := v.window.Send(selScreen)
+	if screen == 0 {
+		return 0
+	}
+
+	key := objc.ID(objc.GetClass("NSString")).Send(selAlloc).Send(selInitWithUTF8, "NSScreenNumber\x00")
+	defer key.Send(selRelease)
+
+	num := screen.Send(selDeviceDescription).Send(selObjectForKey, key)
+	if num == 0 {
+		return 0
+	}
+
+	return uint32(num.Send(selUnsignedIntValue))
+}
 
 // View type.
 type View struct {
@@ -134,8 +261,14 @@ type View struct {
 	scale               float64
 	winWidth, winHeight int
 
-	running     bool
-	created     bool
+	running bool
+	created bool
+
+	link        uintptr
+	linkID      uintptr
+	linkDisplay uint32
+	vsync       atomic.Uint64
+	waiting     atomic.Bool
 	closed      bool
 	closedFired bool
 	fullscreen  bool
@@ -268,14 +401,43 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 	}
 
 	v.setImage(img)
+	v.markCreated()
 
+	return v.run(ctx, nil, time.Time{})
+}
+
+// Present displays image and waits until it is on screen at a vertical blank, or ctx is done.
+func (v *View) Present(ctx context.Context, img image.Image) error {
+	v.setImage(img)
+	v.markCreated()
+
+	if v.running {
+		return nil
+	}
+
+	if err := v.startDisplayLink(); err != nil {
+		next := time.Now().Add(time.Second / 60)
+
+		return v.run(ctx, func() bool { return !time.Now().Before(next) }, next)
+	}
+
+	seq := v.vsync.Load()
+	v.waiting.Store(true)
+	defer v.waiting.Store(false)
+
+	return v.run(ctx, func() bool { return v.vsync.Load() != seq }, time.Time{})
+}
+
+func (v *View) markCreated() {
 	if !v.created {
 		v.created = true
 		if v.createdHandler != nil {
 			v.createdHandler()
 		}
 	}
+}
 
+func (v *View) run(ctx context.Context, done func() bool, deadline time.Time) error {
 	if v.running {
 		return nil
 	}
@@ -286,13 +448,18 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 	}()
 
 	for {
-		if ctx.Err() != nil || v.closed {
+		if ctx.Err() != nil || v.closed || (done != nil && done()) {
 			return nil
 		}
 
 		pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selAlloc).Send(selInit)
 
-		date := objc.ID(objc.GetClass("NSDate")).Send(selDateWithInterval, 0.008)
+		wait := 0.008
+		if !deadline.IsZero() {
+			wait = max(min(wait, time.Until(deadline).Seconds()), 0)
+		}
+
+		date := objc.ID(objc.GetClass("NSDate")).Send(selDateWithInterval, wait)
 		ev := v.app.Send(selNextEvent, nsEventMaskAny, date, v.mode, true)
 		if ev != 0 {
 			if !v.handleEvent(ev) {
@@ -307,6 +474,8 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 // handleEvent dispatches an NSEvent and reports whether it was consumed.
 func (v *View) handleEvent(ev objc.ID) bool {
 	switch int(ev.Send(selType)) {
+	case nsEventTypeApplicationDefined:
+		return true
 	case nsEventTypeKeyDown:
 		if v.keyPressHandler != nil {
 			v.keyPressHandler(int(ev.Send(selKeyCode)) & 0xffff)
@@ -555,6 +724,7 @@ func (v *View) Close() error {
 	}
 
 	v.closed = true
+	v.stopDisplayLink()
 
 	v.window.Send(selOrderOut, objc.ID(0))
 	v.window.Send(selClose)

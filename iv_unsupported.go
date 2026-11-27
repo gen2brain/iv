@@ -22,6 +22,10 @@ func (v *View) Display(ctx context.Context, img image.Image, args ...any) error 
 	return nil
 }
 
+func (v *View) Present(ctx context.Context, img image.Image) error {
+	return nil
+}
+
 func (v *View) ToggleFullscreen() error {
 	return nil
 }
