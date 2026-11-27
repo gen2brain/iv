@@ -12,8 +12,6 @@ import (
 
 	"github.com/tailscale/win"
 	"golang.org/x/sys/windows"
-
-	"github.com/gen2brain/iv/internal/swizzle"
 )
 
 var (
@@ -737,26 +735,7 @@ func hBitmapFromImage(im image.Image, dpi int) (win.HBITMAP, error) {
 	stride := w * 4
 	dst := (*[1 << 30]byte)(lpBits)[: stride*h : stride*h]
 
-	if src, ok := im.(*image.RGBA); ok {
-		for y := 0; y < h; y++ {
-			so := y * src.Stride
-			_ = swizzle.CopyBGRA(dst[y*stride:y*stride+stride], src.Pix[so:so+stride])
-		}
-
-		return hBitmap, nil
-	}
-
-	i := 0
-	for y := bounds.Min.Y; y != bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x != bounds.Max.X; x++ {
-			r, g, b, a := im.At(x, y).RGBA()
-			dst[i+3] = byte(a >> 8)
-			dst[i+2] = byte(r >> 8)
-			dst[i+1] = byte(g >> 8)
-			dst[i+0] = byte(b >> 8)
-			i += 4
-		}
-	}
+	blitImage(dst, w, image.Rect(0, 0, w, h), im, true)
 
 	return hBitmap, nil
 }

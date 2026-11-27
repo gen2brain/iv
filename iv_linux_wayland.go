@@ -80,7 +80,7 @@ type viewWayland struct {
 
 	bg        color.RGBA
 	textColor color.RGBA
-	image     *image.RGBA
+	image     image.Image
 	title     string
 	csd       bool
 
@@ -291,7 +291,7 @@ func (v *viewWayland) show(ctx context.Context, img image.Image, done func() boo
 	b := img.Bounds()
 	v.imgWidth = b.Dx()
 	v.imgHeight = b.Dy()
-	v.image = imageToRGBA(img)
+	v.image = img
 
 	if v.configured {
 		if err := v.render(); err != nil {

@@ -137,3 +137,58 @@ func TestComposeFrame(t *testing.T) {
 		}
 	}
 }
+
+func TestBlitImageSources(t *testing.T) {
+	ratios := []image.YCbCrSubsampleRatio{
+		image.YCbCrSubsampleRatio444, image.YCbCrSubsampleRatio422, image.YCbCrSubsampleRatio420,
+		image.YCbCrSubsampleRatio440, image.YCbCrSubsampleRatio411, image.YCbCrSubsampleRatio410,
+	}
+
+	var srcs []image.Image
+	for _, ratio := range ratios {
+		full := image.NewYCbCr(image.Rect(0, 0, 37, 21), ratio)
+		for i := range full.Y {
+			full.Y[i] = byte(i*7 + 3)
+		}
+		for i := range full.Cb {
+			full.Cb[i], full.Cr[i] = byte(i*13+1), byte(255-i*29)
+		}
+		srcs = append(srcs, full, full.SubImage(image.Rect(3, 5, 34, 20)), full.SubImage(image.Rect(4, 2, 36, 17)))
+	}
+
+	rgba := image.NewRGBA(image.Rect(0, 0, 30, 20))
+	for i := range rgba.Pix {
+		rgba.Pix[i] = byte(i*11 + 7)
+	}
+	srcs = append(srcs, rgba, rgba.SubImage(image.Rect(5, 3, 27, 19)))
+
+	nrgba := image.NewNRGBA(image.Rect(0, 0, 9, 7))
+	for i := range nrgba.Pix {
+		nrgba.Pix[i] = byte(i*5 + 1)
+	}
+	srcs = append(srcs, nrgba)
+
+	const w, h = 48, 30
+	for i, src := range srcs {
+		ref := imageToRGBA(src)
+		b := src.Bounds()
+		for _, bgra := range []bool{false, true} {
+			r := placeImage(w, h, 3, b.Dx(), b.Dy())
+			dst := make([]byte, w*h*4)
+			blitImage(dst, w, r, src, bgra)
+
+			for y := 0; y < r.Dy(); y++ {
+				for x := 0; x < r.Dx(); x++ {
+					want := [4]byte(ref.Pix[ref.PixOffset(x, y):])
+					if bgra {
+						want[0], want[2] = want[2], want[0]
+					}
+					o := ((r.Min.Y+y)*w + r.Min.X + x) * 4
+					if got := [4]byte(dst[o:]); got != want {
+						t.Fatalf("source %d (%T %v) bgra=%v: pixel %d,%d = %v, want %v", i, src, b, bgra, x, y, got, want)
+					}
+				}
+			}
+		}
+	}
+}

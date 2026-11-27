@@ -62,7 +62,7 @@ type viewDRM struct {
 	bg        color.RGBA
 	title     string
 	textColor color.RGBA
-	last      *image.RGBA
+	last      image.Image
 
 	connected atomic.Bool
 }
@@ -232,10 +232,9 @@ func (v *viewDRM) Present(ctx context.Context, img image.Image) error {
 }
 
 func (v *viewDRM) show(img image.Image) {
-	src := imageToRGBA(img)
-	v.last = src
+	v.last = img
 	for j := range v.msets {
-		v.render(&v.msets[j], src)
+		v.render(&v.msets[j], img)
 	}
 }
 
@@ -471,7 +470,7 @@ func (v *viewDRM) SetTitle(title string) error {
 }
 
 // render composes into the modeset's reused back buffer, then presents it stride-aware.
-func (v *viewDRM) render(ms *mset, src *image.RGBA) {
+func (v *viewDRM) render(ms *mset, src image.Image) {
 	w, h := int(ms.mode.Width), int(ms.mode.Height)
 
 	b := src.Bounds()

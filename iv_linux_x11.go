@@ -770,12 +770,11 @@ func (v *viewX11) imageDestroy() error {
 }
 
 func (v *viewX11) compose(data []byte, img image.Image) {
-	src := imageToRGBA(img)
-	b := src.Bounds()
+	b := img.Bounds()
 	r := placeImage(v.bufW, v.bufH, 0, b.Dx(), b.Dy())
 
 	fillAround(data, v.bufW, v.bufH, r, v.bgPixel())
-	blitImage(data, v.bufW, r, src, true)
+	blitImage(data, v.bufW, r, img, true)
 }
 
 func (v *viewX11) bgPixel() [4]byte {

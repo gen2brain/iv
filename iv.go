@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/gen2brain/iv/internal/swizzle"
+	"github.com/gen2brain/iv/internal/ycbcr"
 )
 
 // Cursor is a window cursor shape. Backends map each to the closest native cursor.
@@ -164,16 +165,62 @@ func placeImage(w, h, top, iw, ih int) image.Rectangle {
 	return image.Rect(dx, dy, min(dx+iw, w), min(dy+ih, h))
 }
 
-// blitImage copies src into r of a w-pixel-wide 32-bit buffer, swapping red and blue when bgra is set.
-func blitImage(dst []byte, w int, r image.Rectangle, src *image.RGBA, bgra bool) {
+// blitImage copies src into r of a w-wide buffer.
+func blitImage(dst []byte, w int, r image.Rectangle, src image.Image, bgra bool) {
+	switch s := src.(type) {
+	case *image.RGBA:
+		blitRGBA(dst, w, r, s, bgra)
+	case *image.YCbCr:
+		blitYCbCr(dst, w, r, s, bgra)
+	default:
+		blitRGBA(dst, w, r, imageToRGBA(src), bgra)
+	}
+}
+
+func blitRGBA(dst []byte, w int, r image.Rectangle, src *image.RGBA, bgra bool) {
 	n := r.Dx() * 4
 	for y := 0; y < r.Dy(); y++ {
-		so := y * src.Stride
+		so := src.PixOffset(src.Rect.Min.X, src.Rect.Min.Y+y)
 		do := (r.Min.Y+y)*w*4 + r.Min.X*4
 		if bgra {
 			_ = swizzle.CopyBGRA(dst[do:do+n], src.Pix[so:so+n])
 		} else {
 			copy(dst[do:do+n], src.Pix[so:so+n])
+		}
+	}
+}
+
+func blitYCbCr(dst []byte, w int, r image.Rectangle, src *image.YCbCr, bgra bool) {
+	n := r.Dx()
+	x0 := src.Rect.Min.X
+	for y := 0; y < r.Dy(); y++ {
+		sy := src.Rect.Min.Y + y
+		do := (r.Min.Y+y)*w*4 + r.Min.X*4
+		row := dst[do : do+n*4]
+		yi := src.YOffset(x0, sy)
+		ys := src.Y[yi : yi+n]
+
+		switch src.SubsampleRatio {
+		case image.YCbCrSubsampleRatio444, image.YCbCrSubsampleRatio440:
+			ci := src.COffset(x0, sy)
+			ycbcr.Row(row, ys, src.Cb[ci:ci+n], src.Cr[ci:ci+n], bgra)
+		case image.YCbCrSubsampleRatio422, image.YCbCrSubsampleRatio420:
+			i := 0
+			if x0&1 != 0 && n > 0 {
+				ci := src.COffset(x0, sy)
+				ycbcr.Row(row[:4], ys[:1], src.Cb[ci:ci+1], src.Cr[ci:ci+1], bgra)
+				i = 1
+			}
+			if m := n - i; m > 0 {
+				ci := src.COffset(x0+i, sy)
+				c := (m + 1) / 2
+				ycbcr.Row2(row[4*i:], ys[i:], src.Cb[ci:ci+c], src.Cr[ci:ci+c], bgra)
+			}
+		default:
+			for i := 0; i < n; i++ {
+				ci := src.COffset(x0+i, sy)
+				ycbcr.Row(row[4*i:4*i+4], ys[i:i+1], src.Cb[ci:ci+1], src.Cr[ci:ci+1], bgra)
+			}
 		}
 	}
 }

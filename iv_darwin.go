@@ -555,19 +555,14 @@ func (v *View) setImage(img image.Image) {
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selAlloc).Send(selInit)
 	defer pool.Send(selDrain)
 
-	src := imageToRGBA(img)
-	b := src.Bounds()
+	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
 
 	rep := objc.ID(objc.GetClass("NSBitmapImageRep")).Send(selAlloc)
 	rep = rep.Send(selInitBitmap, uintptr(0), w, h, 8, 4, true, false, v.deviceRGB, w*4, 32)
 
 	data := objc.Send[unsafe.Pointer](rep, selBitmapData)
-	dst := unsafe.Slice((*byte)(data), w*h*4)
-	for y := 0; y < h; y++ {
-		so := y * src.Stride
-		copy(dst[y*w*4:(y+1)*w*4], src.Pix[so:so+w*4])
-	}
+	blitImage(unsafe.Slice((*byte)(data), w*h*4), w, image.Rect(0, 0, w, h), img, false)
 
 	size := NSSize{Width: float64(w) / v.scale, Height: float64(h) / v.scale}
 	nsImage := objc.ID(objc.GetClass("NSImage")).Send(selAlloc).Send(selInitWithSize, size)
