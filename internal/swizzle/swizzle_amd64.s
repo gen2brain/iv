@@ -11,10 +11,11 @@ TEXT ·haveSSSE3(SB), NOSPLIT, $0-1
 	MOVB CX, ret+0(FP)
 	RET
 
-// func swizzleBGRASSSE3(p []byte) int
-TEXT ·swizzleBGRASSSE3(SB), NOSPLIT, $0-32
-	MOVQ p_base+0(FP), SI
-	MOVQ p_len+8(FP), DI
+// func swizzleBGRASSSE3(dst, src []byte) int
+TEXT ·swizzleBGRASSSE3(SB), NOSPLIT, $0-56
+	MOVQ dst_base+0(FP), DX
+	MOVQ src_base+24(FP), SI
+	MOVQ src_len+32(FP), DI
 	MOVQ SI, R8          // save base
 
 	ANDQ $-16, DI        // whole 16-byte chunks
@@ -34,11 +35,12 @@ loop:
 	JEQ  done
 	MOVOU  (SI), X1
 	PSHUFB X0, X1
-	MOVOU  X1, (SI)
+	MOVOU  X1, (DX)
 	ADDQ $16, SI
+	ADDQ $16, DX
 	JMP  loop
 
 done:
 	SUBQ R8, SI
-	MOVQ SI, ret+24(FP)
+	MOVQ SI, ret+48(FP)
 	RET

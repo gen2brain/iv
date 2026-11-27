@@ -2,4 +2,4 @@
 
 package swizzle
 
-func swizzleBGRA(p []byte) int { return 0 }
+func swizzleBGRA(dst, src []byte) int { return 0 }

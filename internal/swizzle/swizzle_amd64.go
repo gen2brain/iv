@@ -6,13 +6,13 @@ package swizzle
 func haveSSSE3() bool
 
 //go:noescape
-func swizzleBGRASSSE3(p []byte) int
+func swizzleBGRASSSE3(dst, src []byte) int
 
 var useSSSE3 = haveSSSE3()
 
-func swizzleBGRA(p []byte) int {
+func swizzleBGRA(dst, src []byte) int {
 	if useSSSE3 {
-		return swizzleBGRASSSE3(p)
+		return swizzleBGRASSSE3(dst, src)
 	}
 
 	return 0

@@ -2,10 +2,11 @@
 
 #include "textflag.h"
 
-// func swizzleBGRARVV(p []byte) int
-TEXT ·swizzleBGRARVV(SB), NOSPLIT, $0-32
-	MOV	p_base+0(FP), A0
-	MOV	p_len+8(FP), A1
+// func swizzleBGRARVV(dst, src []byte) int
+TEXT ·swizzleBGRARVV(SB), NOSPLIT, $0-56
+	MOV	dst_base+0(FP), A6
+	MOV	src_base+24(FP), A0
+	MOV	src_len+32(FP), A1
 	MOV	A0, A2             // save base
 	SRLI	$2, A1, A3         // A3 = pixel count = len/4
 
@@ -16,13 +17,14 @@ loop:
 	VMVVV	V0, V4             // swap R and B planes
 	VMVVV	V2, V0
 	VMVVV	V4, V2
-	VSSEG4E8V	V0, (A0)
+	VSSEG4E8V	V0, (A6)
 	SUB	A4, A3, A3         // pixels -= vl
 	SLLI	$2, A4, A5         // bytes = vl*4
 	ADD	A5, A0, A0         // ptr += bytes
+	ADD	A5, A6, A6         // dst += bytes
 	JMP	loop
 
 done:
 	SUB	A2, A0, A0         // bytes processed = ptr - base
-	MOV	A0, ret+24(FP)
+	MOV	A0, ret+48(FP)
 	RET

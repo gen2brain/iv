@@ -710,9 +710,7 @@ func hBitmapFromImage(im image.Image, dpi int) (win.HBITMAP, error) {
 	if src, ok := im.(*image.RGBA); ok {
 		for y := 0; y < h; y++ {
 			so := y * src.Stride
-			row := dst[y*stride : y*stride+stride]
-			copy(row, src.Pix[so:so+stride])
-			_ = swizzle.BGRA(row)
+			_ = swizzle.CopyBGRA(dst[y*stride:y*stride+stride], src.Pix[so:so+stride])
 		}
 
 		return hBitmap, nil

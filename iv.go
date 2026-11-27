@@ -169,10 +169,10 @@ func blitImage(dst []byte, w int, r image.Rectangle, src *image.RGBA, bgra bool)
 	for y := 0; y < r.Dy(); y++ {
 		so := y * src.Stride
 		do := (r.Min.Y+y)*w*4 + r.Min.X*4
-		row := dst[do : do+n]
-		copy(row, src.Pix[so:so+n])
 		if bgra {
-			_ = swizzle.BGRA(row)
+			_ = swizzle.CopyBGRA(dst[do:do+n], src.Pix[so:so+n])
+		} else {
+			copy(dst[do:do+n], src.Pix[so:so+n])
 		}
 	}
 }

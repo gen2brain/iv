@@ -3,4 +3,4 @@
 package swizzle
 
 //go:noescape
-func swizzleBGRA(p []byte) int
+func swizzleBGRA(dst, src []byte) int

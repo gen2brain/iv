@@ -3,13 +3,13 @@
 package swizzle
 
 //go:noescape
-func swizzleBGRARVV(p []byte) int
+func swizzleBGRARVV(dst, src []byte) int
 
 var useRVV = haveV()
 
-func swizzleBGRA(p []byte) int {
+func swizzleBGRA(dst, src []byte) int {
 	if useRVV {
-		return swizzleBGRARVV(p)
+		return swizzleBGRARVV(dst, src)
 	}
 
 	return 0
